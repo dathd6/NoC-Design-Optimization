@@ -1,5 +1,5 @@
-from moo import MultiObjectiveOptimization
+from optimisation_algorithms.ms_bayesian import MultiSurrogateBayesian
 
 if __name__ == "__main__":
-    optimizer = MultiObjectiveOptimization()
+    optimizer = MultiSurrogateBayesian()
     optimizer.optimize()
