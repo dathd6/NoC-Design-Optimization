@@ -123,7 +123,7 @@ class Mesh2D:
             return 0
     
     def get_fitness(self):
-        return [self.com_cost, self.avg_load_degree]
+        return np.array([self.com_cost, self.avg_load_degree])
 
     def visualize_core_graph(self):
         # Set the aesthetic style of the plots

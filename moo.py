@@ -1,6 +1,7 @@
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
+from constants import NUMBER_OF_OBJECTIVES
 from mesh_2d import Mesh2D
 
 class MultiObjectiveOptimization:
@@ -8,17 +9,13 @@ class MultiObjectiveOptimization:
         self.n_cores = n_cores
         self.core_graph = core_graph
         self.n_rows, self.n_cols = mesh_2d_shape
-        self.population = []
+        self.population = np.array([])
         self.pareto_fronts = []
 
     def intialize_population(self, n_solutions):
         population = []
         for _ in range(n_solutions):
             solution = Mesh2D(self.n_cores, self.n_rows, self.n_cols, self.core_graph)
-            solution.random_core_mapping()
-            solution.find_shortest_route(is_random=True)
-            solution.calc_communication_cost()
-            solution.calc_average_load_degree()
             population.append(solution)
         self.population = np.array(population)
             
@@ -87,6 +84,13 @@ class MultiObjectiveOptimization:
                 dominated_by_current_set = dominating_sets[individual]
                 for dominated_by_current in dominated_by_current_set:
                     dominated_counts[dominated_by_current] -= 1
+
+    def get_nadir(self):
+        fitnesses = np.array([solution.get_fitness() for solution in self.population])
+        nadir = []
+        for i in range(NUMBER_OF_OBJECTIVES):
+            nadir.append(fitnesses[:, i].max())
+        return np.array(nadir)
 
     def optimize(self):
         pass
