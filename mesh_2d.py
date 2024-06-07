@@ -121,7 +121,7 @@ class Mesh2D:
             return -1
         else:
             return 0
-    
+
     def get_fitness(self):
         return np.array([self.com_cost, self.avg_load_degree])
 
@@ -133,7 +133,7 @@ class Mesh2D:
         G = nx.Graph()
 
         # Add edges with bandwidth as weight
-        for core1, core2, bandwidth in self.core_graph:
+        for core1, core2, _ in self.core_graph:
             G.add_edge(core1, core2)
 
         # Generate positions for each node

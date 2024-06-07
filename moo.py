@@ -1,23 +1,31 @@
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
+from pymoo.indicators.hv import HV
+
 from constants import NUMBER_OF_OBJECTIVES
 from mesh_2d import Mesh2D
 
 class MultiObjectiveOptimization:
     def __init__(self, n_cores, core_graph, mesh_2d_shape):
+        self.eval_count = 0
         self.n_cores = n_cores
         self.core_graph = core_graph
         self.n_rows, self.n_cols = mesh_2d_shape
         self.population = np.array([])
         self.pareto_fronts = []
+        self.perf_metrics = []
 
     def intialize_population(self, n_solutions):
         population = []
+        self.size_p = n_solutions
         for _ in range(n_solutions):
             solution = Mesh2D(self.n_cores, self.n_rows, self.n_cols, self.core_graph)
             population.append(solution)
         self.population = np.array(population)
+        # Get 
+        ref_point = self.get_nadir()
+        self.ind = HV(ref_point=ref_point + 0.5)
             
     def visualize_objective_space(self, title, figsize, labels, c_dominated='#2377B4', c_non_dominated='#FA8010', alpha=1):
         front = self.pareto_fronts[0]
@@ -91,6 +99,14 @@ class MultiObjectiveOptimization:
         for i in range(NUMBER_OF_OBJECTIVES):
             nadir.append(fitnesses[:, i].max())
         return np.array(nadir)
+
+    def calc_performance_metric(self):
+        """Calculate hypervolume to the reference point"""
+        front = self.pareto_fronts[0]
+        solutions = np.array([solution.get_fitness() for solution in self.population[front]])
+        self.perf_metrics.append(
+            [self.eval_count, self.ind(solutions)]
+        )
 
     def optimize(self):
         pass

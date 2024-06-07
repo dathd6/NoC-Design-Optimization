@@ -1,15 +1,17 @@
 import numpy as np
-from optimisation_algorithms.moea import MOEA
+ 
+from constants import NUMBER_OF_OBJECTIVES
+from optimisers.approaches.evolutionary_algorithm import MOEA
 
 class NSGA_II(MOEA):
-    def __init__(self, nba_stats, pop_size, n_evaluations, n_tournaments, mvp_share_rmse=False, execution_time=False, mvp_ranking_rmse=False, population=[]) -> None:
-        super().__init__(nba_stats, pop_size, n_evaluations, mvp_share_rmse, execution_time, mvp_ranking_rmse, population)
+    def __init__(self, n_cores, core_graph, mesh_2d_shape, n_tournaments=10):
+        super().__init__(n_cores, core_graph, mesh_2d_shape)
         self.size_t = n_tournaments
 
     def calc_crowding_distance(self):
         self.crowding_distance = np.zeros(len(self.population))
 
-        for front in self.fronts:
+        for front in self.pareto_fronts:
             fitnesses = np.array([
                 solution.get_fitness() for solution in self.population[front]
             ])
@@ -18,13 +20,13 @@ class NSGA_II(MOEA):
             # This is necessary, so each objective's contribution have the same magnitude to the crowding distance.
             normalized_fitnesses = np.zeros_like(fitnesses)
 
-            for j in range(self.n_objectives):
+            for j in range(NUMBER_OF_OBJECTIVES):
                 min_val = np.min(fitnesses[:, j])
                 max_val = np.max(fitnesses[:, j])
                 val_range = max_val - min_val
                 normalized_fitnesses[:, j] = (fitnesses[:, j] - min_val) / val_range
 
-            for j in range(self.n_objectives):
+            for j in range(NUMBER_OF_OBJECTIVES):
                 idx = np.argsort(fitnesses[:, j])
                 
                 self.crowding_distance[idx[0]] = np.inf
@@ -39,7 +41,7 @@ class NSGA_II(MOEA):
         for _ in range(2):
             np.random.shuffle(tournament)
             front = []
-            for f in self.fronts:
+            for f in self.pareto_fronts:
                 front = []
                 for index in f:
                     if tournament[index] == 1:
@@ -55,12 +57,12 @@ class NSGA_II(MOEA):
         population = []
         
         i = 0
-        while len(self.fronts[i]) + len(population) <= self.size_p:
-            for solution in elitism[self.fronts[i]]:
+        while len(self.pareto_fronts[i]) + len(population) <= self.size_p:
+            for solution in elitism[self.pareto_fronts[i]]:
                 population.append(solution)
             i += 1
 
-        front = self.fronts[i]
+        front = self.pareto_fronts[i]
         ranking_index = front[np.argsort(self.crowding_distance[front])]
         current_pop_len = len(population)
         for index in ranking_index[current_pop_len:self.size_p]:
