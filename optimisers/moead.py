@@ -7,8 +7,8 @@ from utils import euclidean_distance_from_point_to_vector
 
 
 class MOEAD(MOEA):
-    def __init__(self, n_cores, core_graph, mesh_2d_shape, n_partitions=10, n_neighbours=3):
-        super().__init__(n_cores, core_graph, mesh_2d_shape)
+    def __init__(self, n_partitions=10, n_neighbours=3):
+        super().__init__()
         self.weights = get_reference_directions(
             "uniform",
             NUMBER_OF_OBJECTIVES,

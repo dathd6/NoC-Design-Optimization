@@ -1,14 +1,14 @@
 import numpy as np
 from constants import CORE_MAPPING_CROSSOVER_RATE, CORE_MAPPING_MUTATION_RATE, ROUTING_MUTATION_RATE
-from mesh_2d import Mesh2D
+from noc import NetworkOnChip
 from moo import MultiObjectiveOptimization
-from utils import find_shortest_route_direction, get_task_through_put, swap_gene
+from utils import find_shortest_route_direction, get_task_throughput, swap_gene
 
 class MOEA(MultiObjectiveOptimization):
-    def __init__(self, n_cores, core_graph, mesh_2d_shape):
-        super().__init__(n_cores, core_graph, mesh_2d_shape)
+    def __init__(self):
+        super().__init__()
 
-    def mutation(self, solution: Mesh2D):
+    def mutation(self, solution: NetworkOnChip):
         mapping_seq = solution.mapping_seq.copy()
         routes = solution.routes.copy()
         bw_throughput = solution.bw_throughput.copy()
@@ -38,9 +38,10 @@ class MOEA(MultiObjectiveOptimization):
                     if core == src or core == des:
                         new_x, new_y = solution.router_index_to_coordinates(core_mapping_coord[core])
                         # Remove the previous route
-                        b, t = get_task_through_put(
+                        b, t = get_task_throughput(
                             n_routers=len(bw_throughput),
                             start=(r1_x, r1_y),
+                            n_cols=solution.n_cols,
                             dir=(x_dir, y_dir),
                             route=solution.routes[i],
                             bw=bw
@@ -54,13 +55,14 @@ class MOEA(MultiObjectiveOptimization):
 
                             # Add new generated route
                             # Generate random route (number of feasible routes is |x1 - x2| * |y1 - y2|)
-                            route = [0] * abs(new_x_dir - r2_x) + [1] * abs(new_y_dir - r2_y)
+                            route = [0] * abs(new_x - r2_x) + [1] * abs(new_y - r2_y)
                             np.random.shuffle(route)
 
                             # Add new route
-                            b, t = get_task_through_put(
+                            b, t = get_task_throughput(
                                 n_routers=len(bw_throughput),
                                 start=(new_x, new_y),
+                                n_cols=solution.n_cols,
                                 dir=(new_x_dir, new_y_dir),
                                 route=route,
                                 bw=bw
@@ -74,13 +76,14 @@ class MOEA(MultiObjectiveOptimization):
 
                             # Add new generated route
                             # Generate random route (number of feasible routes is |x1 - x2| * |y1 - y2|)
-                            route = [0] * abs(new_x_dir - r1_x) + [1] * abs(new_y_dir - r1_y)
+                            route = [0] * abs(new_x - r1_x) + [1] * abs(new_y - r1_y)
                             np.random.shuffle(route)
 
                             # Add new route
-                            b, t = get_task_through_put(
+                            b, t = get_task_throughput(
                                 n_routers=len(bw_throughput),
                                 start=(r1_x, r1_y),
+                                n_cols=solution.n_cols,
                                 dir=(new_x_dir, new_y_dir),
                                 route=route,
                                 bw=bw
@@ -101,9 +104,10 @@ class MOEA(MultiObjectiveOptimization):
             y_dir = find_shortest_route_direction(r1_y, r2_y)
 
             # Remove the previous route
-            b, t = get_task_through_put(
+            b, t = get_task_throughput(
                 n_routers=len(bw_throughput),
                 start=(r1_x, r1_y),
+                n_cols=solution.n_cols,
                 dir=(x_dir, y_dir),
                 route=solution.routes[gene],
                 bw=bw
@@ -115,9 +119,10 @@ class MOEA(MultiObjectiveOptimization):
             # Generate random route (number of feasible routes is |x1 - x2| * |y1 - y2|)
             route = [0] * abs(r1_x - r2_x) + [1] * abs(r1_y - r2_y)
             np.random.shuffle(route)
-            b, t = get_task_through_put(
+            b, t = get_task_throughput(
                 n_routers=len(bw_throughput),
                 start=(r1_x, r1_y),
+                n_cols=solution.n_cols,
                 dir=(x_dir, y_dir),
                 route=route,
                 bw=bw
@@ -128,7 +133,7 @@ class MOEA(MultiObjectiveOptimization):
             # Change new route
             routes[gene] = route
 
-        return Mesh2D(
+        return NetworkOnChip(
             n_cores=solution.n_cores,
             n_rows=solution.n_rows,
             n_cols=solution.n_cols,
@@ -142,7 +147,7 @@ class MOEA(MultiObjectiveOptimization):
         )
             
         
-    def crossover(self, solution_1: Mesh2D, solution_2: Mesh2D):
+    def crossover(self, solution_1: NetworkOnChip, solution_2: NetworkOnChip):
         child_seq_1, child_seq_2 = solution_1.mapping_seq.copy(), solution_2.mapping_seq.copy()
         # Mesh 2D constant attributes
         n_cores = solution_1.n_cores
@@ -174,7 +179,7 @@ class MOEA(MultiObjectiveOptimization):
         if np.random.rand() < CORE_MAPPING_CROSSOVER_RATE:
             child_seq_1, child_seq_2 = partially_mapped_crossover(solution_1.mapping_seq, solution_2.mapping_seq) 
 
-        return Mesh2D(
+        return NetworkOnChip(
             n_cores=n_cores,
             n_rows=n_rows,
             n_cols=n_cols,
@@ -182,7 +187,7 @@ class MOEA(MultiObjectiveOptimization):
             el_bit=el_bit,
             core_graph=core_graph,
             mapping_seq=child_seq_1,
-        ), Mesh2D(
+        ), NetworkOnChip(
             n_cores=n_cores,
             n_rows=n_rows,
             n_cols=n_cols,

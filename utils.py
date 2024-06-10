@@ -19,7 +19,7 @@ def euclidean_distance_from_point_to_vector(point, start, end):
 
     return distance
 
-def get_task_through_put(n_routers, start, dir, route, bw):
+def get_task_throughput(n_routers, n_cols, start, dir, route, bw):
     x, y = start
     x_dir, y_dir = dir
 
@@ -30,7 +30,7 @@ def get_task_through_put(n_routers, start, dir, route, bw):
             x = x + x_dir 
         elif path == 1:
             y = y + y_dir
-        r = (x + 1) * (y + 1) - 1
+        r = x * n_cols  + y
         bw_throughput[r] = bw_throughput[r] + bw
         task_count[r] = task_count[r] + 1
 

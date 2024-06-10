@@ -4,23 +4,28 @@ import matplotlib.pyplot as plt
 from pymoo.indicators.hv import HV
 
 from constants import NUMBER_OF_OBJECTIVES
-from mesh_2d import Mesh2D
+from noc import NetworkOnChip
 
 class MultiObjectiveOptimization:
-    def __init__(self, n_cores, core_graph, mesh_2d_shape):
+    def __init__(self):
         self.eval_count = 0
-        self.n_cores = n_cores
-        self.core_graph = core_graph
-        self.n_rows, self.n_cols = mesh_2d_shape
         self.population = np.array([])
         self.pareto_fronts = []
         self.perf_metrics = []
 
-    def intialize_population(self, n_solutions):
+    def intialize_population(self, n_solutions, n_cores, mesh_2d_shape, es_bit, el_bit, core_graph):
+        n_rows, n_cols = mesh_2d_shape
         population = []
         self.size_p = n_solutions
         for _ in range(n_solutions):
-            solution = Mesh2D(self.n_cores, self.n_rows, self.n_cols, self.core_graph)
+            solution = NetworkOnChip(
+                n_cores=n_cores,
+                n_rows=n_rows,
+                n_cols=n_cols,
+                es_bit=es_bit,
+                el_bit=el_bit,
+                core_graph=core_graph
+            )
             population.append(solution)
         self.population = np.array(population)
         # Get 

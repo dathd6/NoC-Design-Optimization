@@ -4,9 +4,10 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import networkx as nx
 
-from utils import find_shortest_route_direction, get_task_through_put
+from utils import find_shortest_route_direction, get_task_throughput
 
-class Mesh2D:
+class NetworkOnChip:
+    # Mesh 2D topology
     def __init__(self, n_cores, n_rows, n_cols, es_bit, el_bit, core_graph, mapping_seq=None, routes=None, bw_throughput=None, task_count=None):
         """
         Mesh 2D Attributes
@@ -27,26 +28,26 @@ class Mesh2D:
         self.avg_load_degree = None
 
         # Decision variables
-        if mapping_seq != None:
-            self.mapping_seq = mapping_seq
-            self.get_core_mapping_coordinate()
-        else:
+        if mapping_seq == None:
             self.mapping_seq = np.ones(n_rows * n_cols) * -1 # Core mapping sequence for each router
             self.core_mapping_coord = {}                     # Dictionary with key/value is core/router
             self.random_core_mapping()
-
-        if routes != None and bw_throughput != None and task_count != None:
-            self.routes = routes
-            self.bw_throughput = bw_throughput
-            self.task_count = task_count
         else:
+            self.mapping_seq = mapping_seq
+            self.get_core_mapping_coordinate()
+
+        if routes == None and bw_throughput == None and task_count == None:
             self.routes = []                                 # The data transfer route for each task in core graph
             self.bw_throughput = np.zeros(n_rows * n_cols)   # Bandwidth throughput in each router
             self.task_count = np.zeros(n_rows * n_cols)      # Number of task go through each router
             self.random_shortest_routing()
+        else:
+            self.routes = routes
+            self.bw_throughput = bw_throughput
+            self.task_count = task_count
 
         # Calculate fitnesses
-        self.calc_communication_cost()
+        self.calc_energy_consumption()
         self.calc_average_load_degree()
 
     def __gt__(self, other):
@@ -77,6 +78,7 @@ class Mesh2D:
         return result
     
     def get_core_mapping_coordinate(self):
+        self.core_mapping_coord = {}
         for i in range(self.n_rows * self.n_cols):
             core = self.mapping_seq[i]
             if core != -1:
@@ -120,9 +122,10 @@ class Mesh2D:
 
         # Get bandwidth throughput and task count through every router (switch)
         # that the data transfer through
-        bw_throughput, task_count = get_task_through_put(
+        bw_throughput, task_count = get_task_throughput(
             n_routers=self.n_rows * self.n_cols,
             start=(r1_x, r1_y),
+            n_cols=self.n_cols,
             dir=(x_dir, y_dir),
             route=route,
             bw=bw,
@@ -211,11 +214,11 @@ class Mesh2D:
             nodes[router] = (x*2, y*2)
 
             # Add nodes to graph
-            G.add_node(router, pos=nodes[router], label=router)
+            G.add_node(router, pos=nodes[router], label=router, color='orange')
 
             # Connect IP to NI
             if self.mapping_seq[i] != -1:
-                G.add_node(core, pos=nodes[core], label=core)
+                G.add_node(core, pos=nodes[core], label=core, color='lightblue')
                 G.add_edge(core, router)
 
         # Creating edges between routers
@@ -228,17 +231,24 @@ class Mesh2D:
                 G.add_edge(f"R_{x * self.n_cols + y}", f"R_{x * self.n_cols + (y + 1)}")
                 G.add_edge(f"R_{x * self.n_cols + (y + 1)}", f"R_{x * self.n_cols + y}")
 
+        G.add_edge("R_0", "R_3", color='green')
+        G.add_edge("R_0", "R_1", color='blue')
+        G.add_edge("R_0", "R_4", color='yellow')
+
         return G, nodes
 
 
     def visualize_NoC(self):
         G, nodes = self.create_noc_topology()
-        pos = {node: nodes[node] for node in G.nodes()}
+        pos = {node: (loc[1], -loc[0]) for node, loc in nodes.items()}
         labels = {node: G.nodes[node]['label'] for node in G.nodes()}
+
+        node_color = [G.nodes[node]['color'] for node in G]
+        edge_color = [G[u][v].get('color', 'gray') for u, v in G.edges()]
         
         # Draw the network
         plt.figure(figsize=(8, 8))
-        nx.draw(G, pos, with_labels=True, labels=labels, node_size=2000, node_color='skyblue', font_size=9, font_weight='bold', edge_color='gray', width=2)
+        nx.draw(G, pos, with_labels=True, labels=labels, node_color=node_color, node_size=2000, font_size=9, font_weight='bold', edge_color=edge_color, width=2, arrows=True)
         plt.title("Network on Chip (NoC) Topology")
         plt.axis('off')  # Turn off the axis
         plt.show()

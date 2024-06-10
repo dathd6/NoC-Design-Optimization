@@ -4,8 +4,8 @@ from constants import NUMBER_OF_OBJECTIVES
 from optimisers.approaches.evolutionary_algorithm import MOEA
 
 class NSGA_II(MOEA):
-    def __init__(self, n_cores, core_graph, mesh_2d_shape, n_tournaments=10):
-        super().__init__(n_cores, core_graph, mesh_2d_shape)
+    def __init__(self, n_tournaments=10):
+        super().__init__()
         self.size_t = n_tournaments
 
     def calc_crowding_distance(self):
@@ -69,7 +69,7 @@ class NSGA_II(MOEA):
             population.append(elitism[index])
         self.population = np.array(population)
 
-    def optimize(self):
+    def optimize(self, n_evaluations=100):
         is_break = False
         while True:
             self.non_dominated_sorting()
@@ -77,23 +77,18 @@ class NSGA_II(MOEA):
             self.calc_performance_metric()
             while len(self.population) < 2 * self.size_p:
                 parents = self.tournament_selection()
-                childrens = parents[0].crossover(parents[1])
+                childrens = self.crossover(parents[0], parents[1])
                 self.population = np.append(self.population, [self.mutation(childrens[0])])
-                self.eval_count += 2
-                print('\tEvaluation: ', self.eval_count)
-                if self.eval_count == self.n_evaluations:
-                    is_break = True
-                    self.non_dominated_sorting()
-                    self.calc_crowding_distance()
-                    break
                 self.population = np.append(self.population, [self.mutation(childrens[1])])
+
                 self.eval_count += 1
                 print('\tEvaluation: ', self.eval_count)
-                if self.eval_count == self.n_evaluations:
+                if self.eval_count == n_evaluations:
                     is_break = True
                     self.non_dominated_sorting()
                     self.calc_crowding_distance()
                     break
+
                 self.non_dominated_sorting()
                 self.calc_crowding_distance()
 
