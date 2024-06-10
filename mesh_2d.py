@@ -4,6 +4,8 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import networkx as nx
 
+from utils import find_shortest_route_direction, get_task_through_put
+
 class Mesh2D:
     def __init__(self, n_cores, n_rows, n_cols, es_bit, el_bit, core_graph, mapping_seq=None, routes=None, bw_throughput=None, task_count=None):
         """
@@ -25,20 +27,23 @@ class Mesh2D:
         self.avg_load_degree = None
 
         # Decision variables
-        if mapping_seq != None and routes != None and bw_throughput != None and task_count != None:
+        if mapping_seq != None:
             self.mapping_seq = mapping_seq
             self.get_core_mapping_coordinate()
+        else:
+            self.mapping_seq = np.ones(n_rows * n_cols) * -1 # Core mapping sequence for each router
+            self.core_mapping_coord = {}                     # Dictionary with key/value is core/router
+            self.random_core_mapping()
+
+        if routes != None and bw_throughput != None and task_count != None:
             self.routes = routes
             self.bw_throughput = bw_throughput
             self.task_count = task_count
         else:
-            self.mapping_seq = np.ones(n_rows * n_cols) * -1 # Core mapping sequence for each router
-            self.core_mapping_coord = {}                     # Dictionary with key/value is core/router
             self.routes = []                                 # The data transfer route for each task in core graph
             self.bw_throughput = np.zeros(n_rows * n_cols)   # Bandwidth throughput in each router
             self.task_count = np.zeros(n_rows * n_cols)      # Number of task go through each router
-            # Random application mapping and routing
-            self.random_mapping_and_routing()
+            self.random_shortest_routing()
 
         # Calculate fitnesses
         self.calc_communication_cost()
@@ -77,12 +82,13 @@ class Mesh2D:
             if core != -1:
                 self.core_mapping_coord[core] = i
         
-    def random_mapping_and_routing(self):
+    def random_core_mapping(self):
         # Mapping cores randomly on the routers by shuffling
         self.mapping_seq = list(range(self.n_cores)) + [-1] * (self.n_rows * self.n_cols - self.n_cores)
         np.random.shuffle(self.mapping_seq)
         self.get_core_mapping_coordinate()
 
+    def random_shortest_routing(self):
         # Random routing
         self.routes = []
         for src, des, bw in self.core_graph:
@@ -105,8 +111,8 @@ class Mesh2D:
         r1_x, r1_y = self.router_index_to_coordinates(router_1)
         r2_x, r2_y = self.router_index_to_coordinates(router_2)
         # Get the direction of x and y when finding the shortest route from router 1 to router 2
-        x_dir = self.find_shortest_route_direction(r1_x, r2_x)
-        y_dir = self.find_shortest_route_direction(r1_y, r2_y)
+        x_dir = find_shortest_route_direction(r1_x, r2_x)
+        y_dir = find_shortest_route_direction(r1_y, r2_y)
 
         # Generate random route (number of feasible routes is |x1 - x2| * |y1 - y2|)
         route = [0] * abs(r1_x - r2_x) + [1] * abs(r1_y - r2_y)
@@ -114,16 +120,13 @@ class Mesh2D:
 
         # Get bandwidth throughput and task count through every router (switch)
         # that the data transfer through
-        bw_throughput = np.zeros(self.n_rows * self.n_cols)
-        task_count = np.zeros(self.n_rows * self.n_cols)
-        for path in route:
-            if path == 0:
-                r1_x = r1_x + x_dir 
-            elif path == 1:
-                r1_y = r1_y + y_dir
-            r = (r1_x + 1) * (r1_y + 1) - 1
-            bw_throughput[r] = bw_throughput[r] + bw
-            task_count[r] = task_count[r] + 1
+        bw_throughput, task_count = get_task_through_put(
+            n_routers=self.n_rows * self.n_cols,
+            start=(r1_x, r1_y),
+            dir=(x_dir, y_dir),
+            route=route,
+            bw=bw,
+        )
 
         return route, bw_throughput, task_count
 
@@ -160,24 +163,6 @@ class Mesh2D:
                 continue
             self.avg_load_degree = self.avg_load_degree + self.bw_throughput[i] / (total_bw * self.task_count[i])
         self.avg_load_degree = self.avg_load_degree / n_routers
-
-    def find_shortest_route_direction(self, x1, x2):
-        """
-            x-axis:
-                -1 when the direction is from right to left
-                1 when the direction is from left to right
-                0 when two router is on the same row
-            y-axis:
-                -1 when the direction is from bottom to top
-                1 when the direction is from top to bottom
-                0 when two router is on the same column
-        """
-        if x1 < x2:
-            return 1
-        elif x1 > x2:
-            return -1
-        else:
-            return 0
 
     def get_fitness(self):
         return np.array([self.energy_consumption, self.avg_load_degree])
