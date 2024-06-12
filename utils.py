@@ -27,9 +27,9 @@ def get_task_throughput(n_routers, n_cols, start, dir, route, bw):
     task_count = np.zeros(n_routers)
     for path in route:
         if path == 0:
-            x = x + x_dir 
+            y = y + y_dir 
         elif path == 1:
-            y = y + y_dir
+            x = x + x_dir
         r = x * n_cols  + y
         bw_throughput[r] = bw_throughput[r] + bw
         task_count[r] = task_count[r] + 1

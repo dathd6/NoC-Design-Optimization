@@ -26,6 +26,7 @@ class MultiObjectiveOptimization:
                 el_bit=el_bit,
                 core_graph=core_graph
             )
+            print(solution)
             population.append(solution)
         self.population = np.array(population)
         # Get 

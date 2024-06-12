@@ -117,7 +117,7 @@ class NetworkOnChip:
         y_dir = find_shortest_route_direction(r1_y, r2_y)
 
         # Generate random route (number of feasible routes is |x1 - x2| * |y1 - y2|)
-        route = [0] * abs(r1_x - r2_x) + [1] * abs(r1_y - r2_y)
+        route = [1] * abs(r1_x - r2_x) + [0] * abs(r1_y - r2_y)
         np.random.shuffle(route)
 
         # Get bandwidth throughput and task count through every router (switch)
@@ -230,10 +230,6 @@ class NetworkOnChip:
             if y < self.n_cols - 1:  # Connect right
                 G.add_edge(f"R_{x * self.n_cols + y}", f"R_{x * self.n_cols + (y + 1)}")
                 G.add_edge(f"R_{x * self.n_cols + (y + 1)}", f"R_{x * self.n_cols + y}")
-
-        G.add_edge("R_0", "R_3", color='green')
-        G.add_edge("R_0", "R_1", color='blue')
-        G.add_edge("R_0", "R_4", color='yellow')
 
         return G, nodes
 

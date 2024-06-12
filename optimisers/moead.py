@@ -2,7 +2,7 @@ import numpy as np
 from pymoo.util.ref_dirs import get_reference_directions
 
 from constants import NUMBER_OF_OBJECTIVES
-from optimsers.moea import MOEA
+from optimisers.approaches.evolutionary_algorithm import MOEA
 from utils import euclidean_distance_from_point_to_vector
 
 
@@ -17,6 +17,11 @@ class MOEAD(MOEA):
         self.n_weights = len(self.weights)
         self.T_ = n_neighbours
 
+    def intialize_population(self, n_solutions, n_cores, mesh_2d_shape, es_bit, el_bit, core_graph):
+        super().intialize_population(n_solutions, n_cores, mesh_2d_shape, es_bit, el_bit, core_graph)
+
+        self.fitnesses = np.array([[solution.energy_consumption, solution.avg_load_degree] for solution in self.population])
+
         self.z = self.init_z()
         self.b = self.generate_closest_weight_vectors()
         self.nearest_weight = [-1] * len(self.population)
@@ -24,12 +29,12 @@ class MOEAD(MOEA):
 
     def init_objective_nearest_weight_vector(self):
         w_solutions = [[]] * self.n_weights
-        for i, solution in enumerate(self.population):
+        for i, f in enumerate(self.fitnesses):
             min_distance = np.inf
             nearest_weight_index = -1
             for j, w in enumerate(self.weights):
                 distance = euclidean_distance_from_point_to_vector(
-                    point=solution, 
+                    point=f, 
                     start=[0] * NUMBER_OF_OBJECTIVES,
                     end=w
                 )
@@ -44,7 +49,7 @@ class MOEAD(MOEA):
         z = []
 
         for i in range(NUMBER_OF_OBJECTIVES):
-            z.append(self.population[:, i].min())
+            z.append(self.fitnesses[:, i].min())
 
         return np.array(z)
 
@@ -66,8 +71,9 @@ class MOEAD(MOEA):
 
     def tchebycheff(self, solution, sub_problem):
         max_distance = 0
+        fitnesses = solution.get_fitness()
         for i in range(NUMBER_OF_OBJECTIVES):
-            current_score = abs(solution[i] - self.z[i]) * self.weights[sub_problem][i]
+            current_score = abs(fitnesses[i] - self.z[i]) * self.weights[sub_problem][i]
             max_distance = max(max_distance, current_score)
         return max_distance
 
@@ -123,7 +129,7 @@ class MOEAD(MOEA):
 
         return True
 
-    def optimize(self):
+    def optimize(self, n_evaluations=100):
         is_break = False
 
         while True:
@@ -134,19 +140,15 @@ class MOEAD(MOEA):
                 l = np.random.choice(b)
                 parent_a = self.selection_operator(k)
                 parent_b = self.selection_operator(l)
-                childrens = parent_a.crossover(parent_b)
+                childrens = self.crossover(parent_a, parent_b)
                 new_solution_c = self.mutation(childrens[0])
-                self.replacement(new_solution_c)
-                self.eval_count += 1
-                print('\tEvaluation: ', self.eval_count)
-                if self.eval_count == self.n_evaluations:
-                    is_break=True
-                    break
                 new_solution_d = self.mutation(childrens[1])
+                self.replacement(new_solution_c)
                 self.replacement(new_solution_d)
+
                 self.eval_count += 1
                 print('\tEvaluation: ', self.eval_count)
-                if self.eval_count == self.n_evaluations:
+                if self.eval_count == n_evaluations:
                     is_break = True
                     break
             if is_break:

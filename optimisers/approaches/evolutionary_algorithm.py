@@ -55,7 +55,7 @@ class MOEA(MultiObjectiveOptimization):
 
                             # Add new generated route
                             # Generate random route (number of feasible routes is |x1 - x2| * |y1 - y2|)
-                            route = [0] * abs(new_x - r2_x) + [1] * abs(new_y - r2_y)
+                            route = [1] * abs(new_x - r2_x) + [0] * abs(new_y - r2_y)
                             np.random.shuffle(route)
 
                             # Add new route
@@ -76,7 +76,7 @@ class MOEA(MultiObjectiveOptimization):
 
                             # Add new generated route
                             # Generate random route (number of feasible routes is |x1 - x2| * |y1 - y2|)
-                            route = [0] * abs(new_x - r1_x) + [1] * abs(new_y - r1_y)
+                            route = [1] * abs(new_x - r1_x) + [0] * abs(new_y - r1_y)
                             np.random.shuffle(route)
 
                             # Add new route
@@ -117,7 +117,7 @@ class MOEA(MultiObjectiveOptimization):
 
             # Add new generated route
             # Generate random route (number of feasible routes is |x1 - x2| * |y1 - y2|)
-            route = [0] * abs(r1_x - r2_x) + [1] * abs(r1_y - r2_y)
+            route = [1] * abs(r1_x - r2_x) + [0] * abs(r1_y - r2_y)
             np.random.shuffle(route)
             b, t = get_task_throughput(
                 n_routers=len(bw_throughput),
