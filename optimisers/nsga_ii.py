@@ -4,8 +4,8 @@ from constants import NUMBER_OF_OBJECTIVES
 from optimisers.approaches.evolutionary_algorithm import MOEA
 
 class NSGA_II(MOEA):
-    def __init__(self, n_tournaments=10):
-        super().__init__()
+    def __init__(self, population=np.array([]), n_tournaments=10):
+        super().__init__(population=population)
         self.size_t = n_tournaments
 
     def calc_crowding_distance(self):
@@ -82,15 +82,17 @@ class NSGA_II(MOEA):
                 self.population = np.append(self.population, [self.mutation(childrens[1])])
 
                 self.eval_count += 1
-                print('\tEvaluation: ', self.eval_count)
-                if self.eval_count == n_evaluations:
-                    is_break = True
-                    self.non_dominated_sorting()
-                    self.calc_crowding_distance()
-                    break
+                print('\tNSGA-II Evaluation: ', self.eval_count)
 
                 self.non_dominated_sorting()
                 self.calc_crowding_distance()
+
+                if self.eval_count % 10 == 0:
+                    self.calc_performance_metric()
+
+                if self.eval_count == n_evaluations:
+                    is_break = True
+                    break
 
             self.elitism_replacement()
 

@@ -7,9 +7,10 @@ from constants import NUMBER_OF_OBJECTIVES
 from noc import NetworkOnChip
 
 class MultiObjectiveOptimization:
-    def __init__(self):
+    def __init__(self, population=np.array([])):
         self.eval_count = 0
-        self.population = np.array([])
+        self.population = population
+        self.size_p = len(population)
         self.pareto_fronts = []
         self.perf_metrics = []
 
@@ -26,21 +27,20 @@ class MultiObjectiveOptimization:
                 el_bit=el_bit,
                 core_graph=core_graph
             )
-            print(solution)
             population.append(solution)
         self.population = np.array(population)
         # Get 
         ref_point = self.get_nadir()
         self.ind = HV(ref_point=ref_point + 0.5)
             
-    def visualize_objective_space(self, title, figsize, labels, c_dominated='#2377B4', c_non_dominated='#FA8010', alpha=1):
+    def visualize_objective_space(self, filename, title, figsize, labels, c_dominated='#2377B4', c_non_dominated='#FA8010', alpha=1):
         front = self.pareto_fronts[0]
         non_dominated = np.array([
-            solution.get_fitness() for solution in self.population[front]
+            solution.get_fitness(is_flag=False) for solution in self.population[front]
         ])
         dominated = []
         for i in range(1, len(self.pareto_fronts)):
-            dominated = dominated + [solution.get_fitness() for solution in self.population[self.pareto_fronts[i]]]
+            dominated = dominated + [solution.get_fitness(is_flag=False) for solution in self.population[self.pareto_fronts[i]]]
         dominated = np.array(dominated)
         ax = None
         fig = plt.figure(figsize=figsize)
@@ -65,6 +65,8 @@ class MultiObjectiveOptimization:
             color=c_non_dominated,
             label='non-dominated',
         )
+        plt.savefig(filename)
+        plt.close()
 
     def non_dominated_sorting(self):
         """Fast non-dominated sorting to get list Pareto Fronts"""
@@ -100,7 +102,7 @@ class MultiObjectiveOptimization:
                     dominated_counts[dominated_by_current] -= 1
 
     def get_nadir(self):
-        fitnesses = np.array([solution.get_fitness() for solution in self.population])
+        fitnesses = np.array([solution.get_fitness(is_flag=False) for solution in self.population])
         nadir = []
         for i in range(NUMBER_OF_OBJECTIVES):
             nadir.append(fitnesses[:, i].max())
@@ -109,7 +111,7 @@ class MultiObjectiveOptimization:
     def calc_performance_metric(self):
         """Calculate hypervolume to the reference point"""
         front = self.pareto_fronts[0]
-        solutions = np.array([solution.get_fitness() for solution in self.population[front]])
+        solutions = np.array([solution.get_fitness(is_flag=False) for solution in self.population[front]])
         self.perf_metrics.append(
             [self.eval_count, self.ind(solutions)]
         )

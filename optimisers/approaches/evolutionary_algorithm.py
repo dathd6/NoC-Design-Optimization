@@ -1,137 +1,53 @@
 import numpy as np
-from constants import CORE_MAPPING_CROSSOVER_RATE, CORE_MAPPING_MUTATION_RATE, ROUTING_MUTATION_RATE
+from constants import CORE_MAPPING_CROSSOVER_RATE, CORE_MAPPING_MUTATION_RATE, ROUTING_CROSSOVER_RATE, ROUTING_MUTATION_RATE
 from noc import NetworkOnChip
 from moo import MultiObjectiveOptimization
-from utils import find_shortest_route_direction, get_task_throughput, swap_gene
+from utils import core_modification_new_routes, router_index_to_coordinates, swap_cores
 
 class MOEA(MultiObjectiveOptimization):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, population=np.array([])):
+        super().__init__(population=population)
 
-    def mutation(self, solution: NetworkOnChip):
+    def mutation(self, solution: NetworkOnChip, flag=[True, True]):
         mapping_seq = solution.mapping_seq.copy()
         routes = solution.routes.copy()
-        bw_throughput = solution.bw_throughput.copy()
-        task_count = solution.task_count.copy()
+        core_mapping_coord = solution.core_mapping_coord.copy()
+        modified_cores = {}
 
-        if np.random.rand() < CORE_MAPPING_MUTATION_RATE:
+        if flag[0] and np.random.rand() < CORE_MAPPING_MUTATION_RATE: # Flag to check if this is a single objective optmization
             # SINGLE SWAP MUTATION
             gene1, gene2 = np.random.choice(len(mapping_seq), size=2, replace=False)
             mapping_seq[gene1], mapping_seq[gene2] = mapping_seq[gene2], mapping_seq[gene1]
+            modified_cores[mapping_seq[gene1]] = True
+            modified_cores[mapping_seq[gene2]] = True
 
             # Change core mapping coordinate
-            core_mapping_coord = solution.core_mapping_coord.copy()
-            core_mapping_coord[mapping_seq[gene1]] = gene1
-            core_mapping_coord[mapping_seq[gene2]] = gene2
+            if mapping_seq[gene1] != -1:
+                core_mapping_coord[mapping_seq[gene1]] = gene1
+            if mapping_seq[gene2] != -1:
+                core_mapping_coord[mapping_seq[gene2]] = gene2
 
-            # Change routing path for core that have been swapped
-            for i in range(len(solution.core_graph)):
-                src, des, bw = solution.core_graph[i]
-                # Get x, y coordinate of each router in 2D mesh
-                r1_x, r1_y = solution.router_index_to_coordinates(solution.core_mapping_coord[src])
-                r2_x, r2_y = solution.router_index_to_coordinates(solution.core_mapping_coord[des])
-                # Get the direction of x and y when finding the shortest route from router 1 to router 2
-                x_dir = find_shortest_route_direction(r1_x, r2_x)
-                y_dir = find_shortest_route_direction(r1_y, r2_y)
-
-                for core in [mapping_seq[gene1], mapping_seq[gene2]]:
-                    if core == src or core == des:
-                        new_x, new_y = solution.router_index_to_coordinates(core_mapping_coord[core])
-                        # Remove the previous route
-                        b, t = get_task_throughput(
-                            n_routers=len(bw_throughput),
-                            start=(r1_x, r1_y),
-                            n_cols=solution.n_cols,
-                            dir=(x_dir, y_dir),
-                            route=solution.routes[i],
-                            bw=bw
-                        )
-                        bw_throughput = bw_throughput - b
-                        task_count = task_count - t
-
-                        if core == src:
-                            new_x_dir = find_shortest_route_direction(new_x, r2_x)
-                            new_y_dir = find_shortest_route_direction(new_y, r2_y)
-
-                            # Add new generated route
-                            # Generate random route (number of feasible routes is |x1 - x2| * |y1 - y2|)
-                            route = [1] * abs(new_x - r2_x) + [0] * abs(new_y - r2_y)
-                            np.random.shuffle(route)
-
-                            # Add new route
-                            b, t = get_task_throughput(
-                                n_routers=len(bw_throughput),
-                                start=(new_x, new_y),
-                                n_cols=solution.n_cols,
-                                dir=(new_x_dir, new_y_dir),
-                                route=route,
-                                bw=bw
-                            )
-                            bw_throughput = bw_throughput + b
-                            task_count = task_count + t
-
-                        elif core == des:
-                            new_x_dir = find_shortest_route_direction(r1_x, new_x)
-                            new_y_dir = find_shortest_route_direction(r1_y, new_y)
-
-                            # Add new generated route
-                            # Generate random route (number of feasible routes is |x1 - x2| * |y1 - y2|)
-                            route = [1] * abs(new_x - r1_x) + [0] * abs(new_y - r1_y)
-                            np.random.shuffle(route)
-
-                            # Add new route
-                            b, t = get_task_throughput(
-                                n_routers=len(bw_throughput),
-                                start=(r1_x, r1_y),
-                                n_cols=solution.n_cols,
-                                dir=(new_x_dir, new_y_dir),
-                                route=route,
-                                bw=bw
-                            )
-                            bw_throughput = bw_throughput + b
-                            task_count = task_count + t
-
-
-        if np.random.rand() < ROUTING_MUTATION_RATE:
-            # Change a random route for a single task
-            gene = np.random.randint(len(routes))
-            src, des, bw = solution.core_graph[gene]
-            # Get x, y coordinate of each router in 2D mesh
-            r1_x, r1_y = solution.router_index_to_coordinates(solution.core_mapping_coord[src])
-            r2_x, r2_y = solution.router_index_to_coordinates(solution.core_mapping_coord[des])
-            # Get the direction of x and y when finding the shortest route from router 1 to router 2
-            x_dir = find_shortest_route_direction(r1_x, r2_x)
-            y_dir = find_shortest_route_direction(r1_y, r2_y)
-
-            # Remove the previous route
-            b, t = get_task_throughput(
-                n_routers=len(bw_throughput),
-                start=(r1_x, r1_y),
+            core_modification_new_routes(
+                core_graph=solution.core_graph,
+                modified_cores=modified_cores,
+                core_mapping_coord=core_mapping_coord,
                 n_cols=solution.n_cols,
-                dir=(x_dir, y_dir),
-                route=solution.routes[gene],
-                bw=bw
+                routes=routes
             )
-            bw_throughput = bw_throughput - b
-            task_count = task_count - t
 
-            # Add new generated route
-            # Generate random route (number of feasible routes is |x1 - x2| * |y1 - y2|)
-            route = [1] * abs(r1_x - r2_x) + [0] * abs(r1_y - r2_y)
-            np.random.shuffle(route)
-            b, t = get_task_throughput(
-                n_routers=len(bw_throughput),
-                start=(r1_x, r1_y),
-                n_cols=solution.n_cols,
-                dir=(x_dir, y_dir),
-                route=route,
-                bw=bw
-            )
-            bw_throughput = bw_throughput + b
-            task_count = task_count + t
+        if flag[1] and np.random.rand() < ROUTING_MUTATION_RATE:
+            
+            n_mutation = np.random.randint(len(routes))
+            indices = np.random.choice(len(routes), size=n_mutation, replace=False)
 
-            # Change new route
-            routes[gene] = route
+            for idx in indices:
+                # SINGLE SWAP MUTATION
+                route = routes[idx]
+
+                if len(route) <= 1:
+                    continue
+                gene1, gene2 = np.random.choice(len(route), size=2, replace=False)
+                route[gene1], route[gene2] = route[gene2], route[gene1]
 
         return NetworkOnChip(
             n_cores=solution.n_cores,
@@ -142,13 +58,11 @@ class MOEA(MultiObjectiveOptimization):
             core_graph=solution.core_graph,
             mapping_seq=mapping_seq,
             routes=routes,
-            bw_throughput=bw_throughput,
-            task_count=task_count
+            flag=flag
         )
             
         
-    def crossover(self, solution_1: NetworkOnChip, solution_2: NetworkOnChip):
-        child_seq_1, child_seq_2 = solution_1.mapping_seq.copy(), solution_2.mapping_seq.copy()
+    def crossover(self, solution_1: NetworkOnChip, solution_2: NetworkOnChip, flag=[True, True]):
         # Mesh 2D constant attributes
         n_cores = solution_1.n_cores
         n_rows = solution_1.n_rows
@@ -158,26 +72,69 @@ class MOEA(MultiObjectiveOptimization):
         el_bit = solution_1.el_bit
         core_graph = solution_1.core_graph
 
-        def partially_mapped_crossover(parent_a, parent_b):
-            # PMX method ~ Partially matched crossover
-            child_c = parent_a.copy()
-            child_d = parent_b.copy()
+        # Mapping sequence crossover
+        mapping_seq_1, mapping_seq_2 = solution_1.mapping_seq.copy(), solution_2.mapping_seq.copy()
+        routes1, routes2 = solution_1.routes.copy(), solution_2.routes.copy()
+        core_mapping_coord_1, core_mapping_coord_2 = solution_1.core_mapping_coord.copy(), solution_2.core_mapping_coord.copy()
+
+        if flag[0] and np.random.rand() < CORE_MAPPING_CROSSOVER_RATE:
             first_point_subset = np.random.randint(1, n_routers - 1)
             second_point_subset = np.random.randint(first_point_subset, n_routers - 1) + 1
+            modified_cores_1 = {}
+            modified_cores_2 = {}
             for i in range(first_point_subset, second_point_subset):
                 # Partially mapped crossover (PMX)
-                swap_gene(child_c, child_c.index(parent_b[i]), i)
-                swap_gene(child_d, child_d.index(parent_a[i]), i)
-                # cross data
-                child_c[i] = parent_b[i]
-                child_c[child_c.index(child_c[i])] = parent_a[i]
-                # cross data
-                child_d[i] = parent_a[i]
-                child_d[child_d.index(child_d[i])] = parent_b[i]
-            return child_c, child_d
+                idx1, idx2 = swap_cores(
+                    seq=mapping_seq_1,
+                    core1=i,
+                    core2=mapping_seq_1.index(solution_2.mapping_seq[i]),
+                )
+                if mapping_seq_1[idx1] != -1:
+                    core_mapping_coord_1[mapping_seq_1[idx1]] = idx1
+                    modified_cores_1[mapping_seq_1[idx1]] = True
+                if mapping_seq_1[idx2] != -1:
+                    core_mapping_coord_1[mapping_seq_1[idx2]] = idx2
+                    modified_cores_1[mapping_seq_1[idx2]] = True
 
-        if np.random.rand() < CORE_MAPPING_CROSSOVER_RATE:
-            child_seq_1, child_seq_2 = partially_mapped_crossover(solution_1.mapping_seq, solution_2.mapping_seq) 
+                idx1, idx2 = swap_cores(
+                    seq=mapping_seq_2,
+                    core1=i,
+                    core2=mapping_seq_2.index(solution_1.mapping_seq[i]),
+                )
+                if mapping_seq_2[idx1] != -1:
+                    core_mapping_coord_2[mapping_seq_2[idx1]] = idx1
+                    modified_cores_2[mapping_seq_2[idx1]] = True
+                if mapping_seq_2[idx2] != -1:
+                    core_mapping_coord_2[mapping_seq_2[idx2]] = idx2
+                    modified_cores_2[mapping_seq_2[idx2]] = True
+
+            core_modification_new_routes(
+                core_graph=core_graph,
+                modified_cores=modified_cores_1,
+                core_mapping_coord=core_mapping_coord_1,
+                n_cols=n_cols,
+                routes=routes1
+            )
+            core_modification_new_routes(
+                core_graph=core_graph,
+                modified_cores=modified_cores_2,
+                core_mapping_coord=core_mapping_coord_2,
+                n_cols=n_cols,
+                routes=routes2
+            )
+
+        # Route crossover
+        if not flag[0] and np.random.rand() < ROUTING_CROSSOVER_RATE:
+            # Need the same mapping sequence to crossover the route
+            first_point_subset = np.random.randint(1, len(routes1) - 1)
+            second_point_subset = np.random.randint(first_point_subset, len(routes1) - 1) + 1
+            child_c = routes1.copy()
+            child_d = routes2.copy()
+            for i in range(first_point_subset, second_point_subset):
+                child_c[i] = routes2[i]
+                child_d[i] = routes1[i]
+            routes1 = child_c
+            routes2 = child_d
 
         return NetworkOnChip(
             n_cores=n_cores,
@@ -186,7 +143,9 @@ class MOEA(MultiObjectiveOptimization):
             es_bit=es_bit,
             el_bit=el_bit,
             core_graph=core_graph,
-            mapping_seq=child_seq_1,
+            mapping_seq=mapping_seq_1,
+            routes=routes1,
+            flag=flag
         ), NetworkOnChip(
             n_cores=n_cores,
             n_rows=n_rows,
@@ -194,5 +153,7 @@ class MOEA(MultiObjectiveOptimization):
             es_bit=es_bit,
             el_bit=el_bit,
             core_graph=core_graph,
-            mapping_seq=child_seq_2,
+            mapping_seq=mapping_seq_2,
+            routes=routes2,
+            flag=flag
         )

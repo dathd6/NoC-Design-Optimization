@@ -1,4 +1,6 @@
 import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 def euclidean_distance_from_point_to_vector(point, start, end):
     point = np.array(point)
@@ -19,17 +21,20 @@ def euclidean_distance_from_point_to_vector(point, start, end):
 
     return distance
 
-def get_task_throughput(n_routers, n_cols, start, dir, route, bw):
+def get_task_throughput(n_rows, n_cols, start, dir, route, bw):
     x, y = start
     x_dir, y_dir = dir
-
+    n_routers = n_rows * n_cols
     bw_throughput = np.zeros(n_routers)
     task_count = np.zeros(n_routers)
+    r = x * n_cols  + y
+    bw_throughput[r] = bw_throughput[r] + bw
+    task_count[r] = task_count[r] + 1
     for path in route:
         if path == 0:
-            y = y + y_dir 
-        elif path == 1:
             x = x + x_dir
+        elif path == 1:
+            y = y + y_dir 
         r = x * n_cols  + y
         bw_throughput[r] = bw_throughput[r] + bw
         task_count[r] = task_count[r] + 1
@@ -54,16 +59,42 @@ def find_shortest_route_direction(x1, x2):
     else:
         return 0
 
-def swap_gene(chromosome, gene1=None, gene2=None):
-    new_solution = chromosome.copy()
-    # choose two random genes
-    # If there are none given gene
-    if not gene1:
-        gene1 = np.random.randint(0, len(new_solution) - 1)
-    if not gene2:
-        gene2 = np.random.randint(0, len(new_solution)- 1)
-    # Swap
-    temp = new_solution[gene1]
-    new_solution[gene1] = new_solution[gene2]
-    new_solution[gene2] = temp
-    return new_solution
+def swap_cores(seq, core1, core2):
+    if seq[core2] == -1:
+        empty_cores = [i for i, value in enumerate(seq) if value == -1]
+        core2 = np.random.choice(empty_cores)
+    seq[core1], seq[core2] = seq[core2], seq[core1]
+    return core1, core2
+
+def visualise_perf(filename, optimisers, labels):
+    for i, opt in enumerate(optimisers):
+        perf_metrics = np.array(opt.perf_metrics)
+        sns.lineplot(
+            x=perf_metrics[:, 0],
+            y=perf_metrics[:, 1],
+            label=labels[i],
+        )
+    plt.xlabel('No. evaluations')
+    plt.ylabel('Hypervolume')
+    plt.title('HV convergence')
+    plt.savefig(filename)
+    plt.close()
+    # plt.show()
+
+def router_index_to_coordinates(idx, n_cols):
+    x = idx // n_cols
+    y = idx % n_cols
+    return (x, y)
+
+
+def core_modification_new_routes(core_graph, modified_cores, core_mapping_coord, n_cols, routes):
+    # Change routing path for core that have been swapped
+    for i in range(len(core_graph)):
+        src, des, _ = core_graph[i]
+        if modified_cores.get(src) or modified_cores.get(des):
+            r1_x, r1_y = router_index_to_coordinates(core_mapping_coord[src], n_cols)
+            r2_x, r2_y = router_index_to_coordinates(core_mapping_coord[des], n_cols)
+
+            new_route = [0] * abs(r1_x - r2_x) + [1] * abs(r1_y - r2_y)
+            np.random.shuffle(new_route)
+            routes[i] = new_route

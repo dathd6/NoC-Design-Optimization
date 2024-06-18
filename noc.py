@@ -4,11 +4,11 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import networkx as nx
 
-from utils import find_shortest_route_direction, get_task_throughput
+from utils import find_shortest_route_direction, get_task_throughput, router_index_to_coordinates
 
 class NetworkOnChip:
     # Mesh 2D topology
-    def __init__(self, n_cores, n_rows, n_cols, es_bit, el_bit, core_graph, mapping_seq=None, routes=None, bw_throughput=None, task_count=None):
+    def __init__(self, n_cores, n_rows, n_cols, es_bit, el_bit, core_graph, mapping_seq=None, routes=None, flag=[True, True]):
         """
         Mesh 2D Attributes
             n_cores         - number of cores
@@ -16,6 +16,7 @@ class NetworkOnChip:
             core_graph      - core graph/task graph
             es_bit & el_bit - energy consumed in the switchs (routers) and links
         """
+        self.flag = flag # Disable flag for objectives
         self.n_cores = n_cores
         self.n_rows = n_rows
         self.n_cols = n_cols
@@ -34,104 +35,101 @@ class NetworkOnChip:
             self.random_core_mapping()
         else:
             self.mapping_seq = mapping_seq
-            self.get_core_mapping_coordinate()
-
-        if routes == None and bw_throughput == None and task_count == None:
-            self.routes = []                                 # The data transfer route for each task in core graph
-            self.bw_throughput = np.zeros(n_rows * n_cols)   # Bandwidth throughput in each router
-            self.task_count = np.zeros(n_rows * n_cols)      # Number of task go through each router
-            self.random_shortest_routing()
-        else:
-            self.routes = routes
-            self.bw_throughput = bw_throughput
-            self.task_count = task_count
-
-        # Calculate fitnesses
-        self.calc_energy_consumption()
-        self.calc_average_load_degree()
-
-    def __gt__(self, other):
-        # Dominance
-        s_fitness = self.get_fitness()
-        o_fitness = other.get_fitness()
-        result = True
-        for i in range(len(s_fitness)):
-            result = result and (s_fitness[i] < o_fitness[i])
-        return result
-
-    def __eq__(self, other):
-        # Equal
-        s_fitness = self.get_fitness()
-        o_fitness = other.get_fitness()
-        result = True
-        for i in range(len(s_fitness)):
-            result = result and (s_fitness[i] == o_fitness[i])
-        return result
-
-    def __ge__(self, other):
-        # Weakly dominance
-        s_fitness = self.get_fitness()
-        o_fitness = other.get_fitness()
-        result = True
-        for i in range(len(s_fitness)):
-            result = result and (s_fitness[i] <= o_fitness[i])
-        return result
-    
-    def get_core_mapping_coordinate(self):
         self.core_mapping_coord = {}
         for i in range(self.n_rows * self.n_cols):
             core = self.mapping_seq[i]
             if core != -1:
                 self.core_mapping_coord[core] = i
+
+        if routes == None:
+            self.routes = []                                 # The data transfer route for each task in core graph
+            self.random_shortest_routing()
+        else:
+            self.routes = routes
+        self.get_task_count_and_throughput()
+        
+        # Calculate fitnesses
+        self.calc_energy_consumption()
+        self.calc_average_load_degree()
+
+    def set_flag(self, flag):
+        self.flag = flag
+
+    def __gt__(self, other):
+        # Dominance
+        s_fitness = self.get_fitness(is_flag=False)
+        o_fitness = other.get_fitness(is_flag=False)
+        result = True
+        for i in range(len(s_fitness)):
+            if self.flag[i]:
+                result = result and (s_fitness[i] < o_fitness[i])
+        return result
+
+    def __eq__(self, other):
+        # Equal
+        s_fitness = self.get_fitness(is_flag=False)
+        o_fitness = other.get_fitness(is_flag=False)
+        result = True
+        for i in range(len(s_fitness)):
+            if self.flag[i]:
+                result = result and (s_fitness[i] == o_fitness[i])
+        return result
+
+    def __ge__(self, other):
+        # Weakly dominance
+        s_fitness = self.get_fitness(is_flag=False)
+        o_fitness = other.get_fitness(is_flag=False)
+        result = True
+        for i in range(len(s_fitness)):
+            if self.flag[i]:
+                result = result and (s_fitness[i] <= o_fitness[i])
+        return result
         
     def random_core_mapping(self):
         # Mapping cores randomly on the routers by shuffling
         self.mapping_seq = list(range(self.n_cores)) + [-1] * (self.n_rows * self.n_cols - self.n_cores)
         np.random.shuffle(self.mapping_seq)
-        self.get_core_mapping_coordinate()
 
     def random_shortest_routing(self):
         # Random routing
         self.routes = []
-        for src, des, bw in self.core_graph:
-            route, bw_throughput, task_count = self.find_shortest_route(
-                self.core_mapping_coord[src],
-                self.core_mapping_coord[des],
-                bw
-            )
+        for src, des, _ in self.core_graph:
+            # Get x, y coordinate of each router in 2D mesh
+            r1_x, r1_y = router_index_to_coordinates(self.core_mapping_coord[src], self.n_cols)
+            r2_x, r2_y = router_index_to_coordinates(self.core_mapping_coord[des], self.n_cols)
+            # Generate random route (number of feasible routes is |x1 - x2| * |y1 - y2|)
+            route = [0] * abs(r1_x - r2_x) + [1] * abs(r1_y - r2_y)
+            np.random.shuffle(route)
             self.routes.append(route)
+
+    def get_task_count_and_throughput(self):
+        n_routers = self.n_rows * self.n_cols
+        self.bw_throughput = np.zeros(n_routers)   # Bandwidth throughput in each router
+        self.task_count = np.zeros(n_routers)      # Number of task go through each router
+        for i in range(n_routers):
+            src, des, bw = self.core_graph[i]
+            route = self.routes[i]
+
+            # Get x, y coordinate of each router in 2D mesh
+            r1_x, r1_y = router_index_to_coordinates(self.core_mapping_coord[src], self.n_cols)
+            r2_x, r2_y = router_index_to_coordinates(self.core_mapping_coord[des], self.n_cols)
+            # Get the direction of x and y when finding the shortest route from router 1 to router 2
+            x_dir = find_shortest_route_direction(r1_x, r2_x)
+            y_dir = find_shortest_route_direction(r1_y, r2_y)
+
+            # Get bandwidth throughput and task count through every router (switch)
+            # that the data transfer through
+            bw_throughput, task_count = get_task_throughput(
+                start=(r1_x, r1_y),
+                n_cols=self.n_cols,
+                n_rows=self.n_rows,
+                dir=(x_dir, y_dir),
+                route=route,
+                bw=bw,
+            )
+
             self.bw_throughput = self.bw_throughput + bw_throughput
             self.task_count = self.task_count + task_count
-
-    def router_index_to_coordinates(self, idx):
-        x = idx // self.n_cols
-        y = idx % self.n_cols
-        return (x, y)
-
-    def find_shortest_route(self, router_1, router_2, bw):
-        # Get x, y coordinate of each router in 2D mesh
-        r1_x, r1_y = self.router_index_to_coordinates(router_1)
-        r2_x, r2_y = self.router_index_to_coordinates(router_2)
-        # Get the direction of x and y when finding the shortest route from router 1 to router 2
-        x_dir = find_shortest_route_direction(r1_x, r2_x)
-        y_dir = find_shortest_route_direction(r1_y, r2_y)
-
-        # Generate random route (number of feasible routes is |x1 - x2| * |y1 - y2|)
-        route = [1] * abs(r1_x - r2_x) + [0] * abs(r1_y - r2_y)
-        np.random.shuffle(route)
-
-        # Get bandwidth throughput and task count through every router (switch)
-        # that the data transfer through
-        bw_throughput, task_count = get_task_throughput(
-            n_routers=self.n_rows * self.n_cols,
-            start=(r1_x, r1_y),
-            n_cols=self.n_cols,
-            dir=(x_dir, y_dir),
-            route=route,
-            bw=bw,
-        )
-
-        return route, bw_throughput, task_count
 
     def calc_energy_consumption(self):
         # Search all the routes to calculate total energy consumption
@@ -167,8 +165,15 @@ class NetworkOnChip:
             self.avg_load_degree = self.avg_load_degree + self.bw_throughput[i] / (total_bw * self.task_count[i])
         self.avg_load_degree = self.avg_load_degree / n_routers
 
-    def get_fitness(self):
-        return np.array([self.energy_consumption, self.avg_load_degree])
+    def get_fitness(self, is_flag=True):
+        if not is_flag:
+            return np.array([self.energy_consumption, self.avg_load_degree])
+        fitness = []
+        if self.flag[0] == True:
+            fitness.append(self.energy_consumption)
+        if self.flag[1] == True:
+            fitness.append(self.avg_load_degree)
+        return np.array(fitness)
 
     def visualize_core_graph(self):
         # Set the aesthetic style of the plots
@@ -209,7 +214,7 @@ class NetworkOnChip:
         for i in range(self.n_rows * self.n_cols):
             core = f"C_{self.mapping_seq[i]}"
             router = f"R_{i}"
-            x, y = self.router_index_to_coordinates(i)
+            x, y = router_index_to_coordinates(i, self.n_cols)
             nodes[core] = (x*2+ 1, y*2 + 1)
             nodes[router] = (x*2, y*2)
 
@@ -223,7 +228,7 @@ class NetworkOnChip:
 
         # Creating edges between routers
         for i in range(self.n_rows * self.n_cols):
-            x, y = self.router_index_to_coordinates(i)
+            x, y = router_index_to_coordinates(i, self.n_cols)
             if x < self.n_rows - 1:  # Connect down
                 G.add_edge(f"R_{x * self.n_cols + y}", f"R_{(x + 1) * self.n_cols + y}")
                 G.add_edge(f"R_{(x + 1) * self.n_cols + y}", f"R_{x * self.n_cols + y}")
