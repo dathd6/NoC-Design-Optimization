@@ -1,3 +1,4 @@
+import csv
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
@@ -7,8 +8,9 @@ from constants import NUMBER_OF_OBJECTIVES
 from noc import NetworkOnChip
 
 class MultiObjectiveOptimization:
-    def __init__(self, population=np.array([])):
-        self.eval_count = 0
+    def __init__(self, record_folder=None, population=np.array([])):
+        self.record_folder = record_folder
+        self.n_iters = 0
         self.population = population
         self.size_p = len(population)
         self.pareto_fronts = []
@@ -33,41 +35,6 @@ class MultiObjectiveOptimization:
         ref_point = self.get_nadir()
         self.ind = HV(ref_point=ref_point + 0.5)
             
-    def visualize_objective_space(self, filename, title, figsize, labels, c_dominated='#2377B4', c_non_dominated='#FA8010', alpha=1):
-        front = self.pareto_fronts[0]
-        non_dominated = np.array([
-            solution.get_fitness(is_flag=False) for solution in self.population[front]
-        ])
-        dominated = []
-        for i in range(1, len(self.pareto_fronts)):
-            dominated = dominated + [solution.get_fitness(is_flag=False) for solution in self.population[self.pareto_fronts[i]]]
-        dominated = np.array(dominated)
-        ax = None
-        fig = plt.figure(figsize=figsize)
-        fig.suptitle(title)
-
-        ax = fig.add_subplot(121)
-        ax.set_xlabel(labels[0])
-        ax.set_ylabel(labels[1])
-        if dominated.size != 0:
-            sns.scatterplot(
-                x=dominated[:, 0],
-                y=dominated[:, 1],
-                ax=ax,
-                label='dominated',
-                color=c_dominated,
-                alpha=alpha
-            )
-        sns.scatterplot(
-            x=non_dominated[:, 0],
-            y=non_dominated[:, 1],
-            ax=ax,
-            color=c_non_dominated,
-            label='non-dominated',
-        )
-        plt.savefig(filename)
-        plt.close()
-
     def non_dominated_sorting(self):
         """Fast non-dominated sorting to get list Pareto Fronts"""
         dominating_sets = []
@@ -113,8 +80,24 @@ class MultiObjectiveOptimization:
         front = self.pareto_fronts[0]
         solutions = np.array([solution.get_fitness(is_flag=False) for solution in self.population[front]])
         self.perf_metrics.append(
-            [self.eval_count, self.ind(solutions)]
+            [self.n_iters, self.ind(solutions)]
         )
+
+    def record_population(self, is_solution=False):
+        with open(f'{self.record_folder}_fitness_{self.n_iters}.txt', 'w') as f:
+            writer = csv.writer(f, delimiter=' ')
+            for noc in self.population:
+                writer.writerow([noc.energy_consumption, noc.avg_load_degree])
+        if is_solution:
+            with open(f'{self.record_folder}_mapping_{self.n_iters}.txt', 'w') as f:
+                writer = csv.writer(f, delimiter=' ')
+                for noc in self.population:
+                    writer.writerow(noc.mapping_seq)
+
+            with open(f'{self.record_folder}_route_{self.n_iters}.txt', 'w') as f:
+                writer = csv.writer(f, delimiter=' ')
+                for noc in self.population:
+                    writer.writerows(noc.routes)
 
     def optimize(self):
         pass

@@ -2,11 +2,11 @@ import numpy as np
 from constants import CORE_MAPPING_CROSSOVER_RATE, CORE_MAPPING_MUTATION_RATE, ROUTING_CROSSOVER_RATE, ROUTING_MUTATION_RATE
 from noc import NetworkOnChip
 from moo import MultiObjectiveOptimization
-from utils import core_modification_new_routes, router_index_to_coordinates, swap_cores
+from utils import core_modification_new_routes, swap_cores
 
 class MOEA(MultiObjectiveOptimization):
-    def __init__(self, population=np.array([])):
-        super().__init__(population=population)
+    def __init__(self, record_folder=None, population=np.array([])):
+        super().__init__(record_folder=record_folder, population=population)
 
     def mutation(self, solution: NetworkOnChip, flag=[True, True]):
         mapping_seq = solution.mapping_seq.copy()

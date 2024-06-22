@@ -4,8 +4,8 @@ from constants import NUMBER_OF_OBJECTIVES
 from optimisers.approaches.evolutionary_algorithm import MOEA
 
 class NSGA_II(MOEA):
-    def __init__(self, population=np.array([]), n_tournaments=10):
-        super().__init__(population=population)
+    def __init__(self, record_folder=None, population=np.array([]), n_tournaments=10):
+        super().__init__(record_folder=record_folder, population=population)
         self.size_t = n_tournaments
 
     def calc_crowding_distance(self):
@@ -69,35 +69,29 @@ class NSGA_II(MOEA):
             population.append(elitism[index])
         self.population = np.array(population)
 
-    def optimize(self, n_evaluations=100):
-        is_break = False
+    def optimize(self, n_iterations=100):
         while True:
             self.non_dominated_sorting()
             self.calc_crowding_distance()
-            self.calc_performance_metric()
-            while len(self.population) < 2 * self.size_p:
+            self.record_population()
+            population = []
+            print(f'NSGA-II Iteration: {self.n_iters + 1}')
+            while len(self.population) + len(population) < 2 * self.size_p:
                 parents = self.tournament_selection()
                 childrens = self.crossover(parents[0], parents[1])
-                self.population = np.append(self.population, [self.mutation(childrens[0])])
-                self.population = np.append(self.population, [self.mutation(childrens[1])])
+                new_children_1 = self.mutation(childrens[0])
+                new_children_2 = self.mutation(childrens[1])
+                population.append(new_children_1)
+                population.append(new_children_2)
 
-                self.eval_count += 1
-                print('\tNSGA-II Evaluation: ', self.eval_count)
+            self.population = np.append(self.population, population)
 
-                self.non_dominated_sorting()
-                self.calc_crowding_distance()
-
-                if self.eval_count % 10 == 0:
-                    self.calc_performance_metric()
-
-                if self.eval_count == n_evaluations:
-                    is_break = True
-                    break
-
+            self.non_dominated_sorting()
+            self.calc_crowding_distance()
             self.elitism_replacement()
 
-            if is_break:
+            self.n_iters = self.n_iters + 1
+            if self.n_iters == n_iterations:
                 break
-        self.non_dominated_sorting()
-        self.calc_performance_metric()
 
+        self.record_population()

@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -98,3 +99,115 @@ def core_modification_new_routes(core_graph, modified_cores, core_mapping_coord,
             new_route = [0] * abs(r1_x - r2_x) + [1] * abs(r1_y - r2_y)
             np.random.shuffle(new_route)
             routes[i] = new_route
+
+def get_file_name(path):
+    token = os.path.basename(path).split('.')
+    return token[0], token[1]
+
+def get_number_of_cores(core_graph):
+    n_cores = 0
+    for src, des, _ in core_graph:
+        n_cores = np.max([src, des, n_cores])
+    return n_cores + 1
+
+def get_latest_test_case(directory_path):
+    try:
+        subfolders = [f.name for f in os.scandir(directory_path) if f.is_dir()]
+        testcase_number = -1
+        for subfolder in subfolders:
+            testcase_number = np.max([int(subfolder.split('_')[-1]), testcase_number])
+        return testcase_number + 1
+    except FileNotFoundError:
+        return f"Directory {directory_path} not found."
+    except Exception:
+        return 0
+
+def count_dir(directory, optimiser=None):
+    # List all items in the given directory
+    items = os.listdir(directory)
+    folder_count = 0
+    for item in items:
+        if optimiser and optimiser in item:
+            # Count only directories
+            folder_count = folder_count + 1
+
+        if not optimiser:
+            folder_count = folder_count + 1
+
+    return folder_count
+
+def dominated(fitness1, fitness2):
+    if fitness1[0] <= fitness2[0] and fitness1[1] <= fitness2[1]:
+        return True
+    return False
+
+def not_equal(fitness1, fitness2):
+    if fitness1[0] != fitness2[0] and fitness1[1] != fitness2[1]:
+        return True
+    return False
+
+def non_dominated_sorting(fitnesses):
+    """Fast non-dominated sorting to get list Pareto Fronts"""
+    dominating_sets = []
+    dominated_counts = []
+
+    # For each solution:
+    # - Get solution index that dominated by current solution
+    # - Count number of solution dominated current solution
+    for f1 in fitnesses:
+        current_dominating_set = set()
+        dominated_counts.append(0)
+        for i, f2 in enumerate(fitnesses):
+            if dominated(f1, f2) and not_equal(f1, f2):
+                current_dominating_set.add(i)
+            elif dominated(f2, f1) and not_equal(f1, f2):
+                dominated_counts[-1] += 1
+        dominating_sets.append(current_dominating_set)
+
+    dominated_counts = np.array(dominated_counts)
+    pareto_fronts = []
+
+    # Append all the pareto fronts and stop when there is no solution being dominated (domintead count = 0)
+    while True:
+        current_front = np.where(dominated_counts==0)[0]
+        if len(current_front) == 0:
+            break
+        pareto_fronts.append(current_front)
+        for individual in current_front:
+            dominated_counts[individual] = -1 # this solution is already accounted for, make it -1 so will not find it anymore
+            dominated_by_current_set = dominating_sets[individual]
+            for dominated_by_current in dominated_by_current_set:
+                dominated_counts[dominated_by_current] -= 1
+
+    return pareto_fronts
+
+def visualize_objective_space(filename, list_pareto_fronts, fitnesses, title, figsize, labels, alpha=1):
+    for opt, pareto_fronts in list_pareto_fronts.items():
+        # print(opt)
+        # print(pareto_fronts)
+        front = pareto_fronts[0]
+        non_dominated = np.array([
+            solution for solution in fitnesses[opt][front]
+        ])
+        dominated = []
+        for i in range(1, len(pareto_fronts)):
+            dominated = dominated + [solution for solution in fitnesses[opt][pareto_fronts[i]]]
+        dominated = np.array(dominated)
+        if dominated.size != 0:
+            sns.scatterplot(
+                x=dominated[:, 0],
+                y=dominated[:, 1],
+                label=f'{opt} dominated',
+                alpha=alpha
+            )
+        sns.scatterplot(
+            x=non_dominated[:, 0],
+            y=non_dominated[:, 1],
+            label=f'{opt} non-dominated',
+        )
+    plt.figure(figsize=figsize)
+    plt.title(title)
+    plt.xlabel(labels[0])
+    plt.ylabel(labels[1])
+    plt.savefig(filename)
+

@@ -4,8 +4,8 @@ from noc import NetworkOnChip
 from optimisers.approaches.evolutionary_algorithm import MOEA
 
 class Bilevel(MOEA):
-    def __init__(self, population=np.array([]), n_tournaments=10):
-        super().__init__(population)
+    def __init__(self, record_folder=None, population=np.array([]), n_tournaments=10):
+        super().__init__(record_folder=record_folder, population=population)
         self.size_t = n_tournaments
 
     def sorting_solution(self):
@@ -24,8 +24,7 @@ class Bilevel(MOEA):
     def elitism_replacement(self):
         self.population = self.population[:self.size_p]
 
-    def optimize(self, n_evaluations=100):
-        is_break = False
+    def optimize(self, n_iterations=100):
         for i in range(NUMBER_OF_OBJECTIVES):
             flag = [True, True]
             flag[i] = True
@@ -34,35 +33,28 @@ class Bilevel(MOEA):
                 noc.set_flag(flag)
 
             while True:
+                population = []
                 self.sorting_solution()
-                if i == 0:
-                    self.non_dominated_sorting()
-                    self.calc_performance_metric()
-                while len(self.population) < 2 * self.size_p:
+                self.record_population()
+                print(f'Bilevel { "lower" if i == 0 else "upper" } Iteration: ', self.n_iters + 1)
+                while len(self.population) + len(population) < 2 * self.size_p:
                     parents = self.tournament_selection()
                     childrens = self.crossover(parents[0], parents[1], flag=flag)
-                    self.population = np.append(self.population, [self.mutation(childrens[0], flag=flag)])
-                    self.population = np.append(self.population, [self.mutation(childrens[1], flag=flag)])
+                    population.append(self.mutation(childrens[0], flag=flag))
+                    population.append(self.mutation(childrens[1], flag=flag))
 
-                    self.eval_count += 1
-                    print(f'\tBilevel {i} Evaluation: ', self.eval_count)
+                self.population = np.append(self.population, population)
 
-                    self.sorting_solution()
-                    if i == 0:
-                        self.non_dominated_sorting()
-                        self.calc_performance_metric()
-
-                    if self.eval_count == n_evaluations:
-                        is_break = True
-                        break
-                    
+                self.sorting_solution()
                 self.elitism_replacement()
-                if i == 0:
-                    self.non_dominated_sorting()
-                    self.calc_performance_metric()
 
-                if is_break:
+                self.n_iters += 1
+                if i == 0 and self.n_iters == n_iterations:
                     break
+                if i == 1 and self.n_iters == n_iterations * 2:
+                    break
+
+            self.record_population()
 
             if i == 0:
                 # Generate new population with best solution for energy consumption (static mapping sequence)
