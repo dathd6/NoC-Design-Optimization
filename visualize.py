@@ -46,14 +46,7 @@ if __name__ == "__main__":
                 bilevel.append(f_exp)
 
     # Visualize the objective space
-    optimal_bilevel = np.array([f_exp[-1][0] for f_exp in bilevel])
     plt.figure(figsize=(8, 8))
-    plt.scatter(
-        x=optimal_bilevel[:, 0],
-        y=optimal_bilevel[:, 1],
-        label=f'Bi-level optimal solution',
-    )
-
     optimal_nsga_ii = np.array([])
     for f_exp in nsga_ii:
         if len(optimal_nsga_ii) == 0:
@@ -81,6 +74,13 @@ if __name__ == "__main__":
         label=f'NSGA-II non-dominated solution',
     )
     
+    optimal_bilevel = np.array([f_exp[-1][0] for f_exp in bilevel])
+    plt.scatter(
+        x=optimal_bilevel[:, 0],
+        y=optimal_bilevel[:, 1],
+        label=f'Bi-level optimal solution',
+    )
+
     plt.title('Objective space')
     plt.xlabel('Energy Consumption')
     plt.ylabel('Average Load Degree')

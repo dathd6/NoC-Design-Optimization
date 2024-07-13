@@ -1,3 +1,4 @@
+import csv
 import os
 import numpy as np
 import matplotlib.pyplot as plt
@@ -22,26 +23,6 @@ def euclidean_distance_from_point_to_vector(point, start, end):
 
     return distance
 
-def get_task_throughput(n_rows, n_cols, start, dir, route, bw):
-    x, y = start
-    x_dir, y_dir = dir
-    n_routers = n_rows * n_cols
-    bw_throughput = np.zeros(n_routers)
-    task_count = np.zeros(n_routers)
-    r = x * n_cols  + y
-    bw_throughput[r] = bw_throughput[r] + bw
-    task_count[r] = task_count[r] + 1
-    for path in route:
-        if path == 0:
-            x = x + x_dir
-        elif path == 1:
-            y = y + y_dir 
-        r = x * n_cols  + y
-        bw_throughput[r] = bw_throughput[r] + bw
-        task_count[r] = task_count[r] + 1
-
-    return bw_throughput, task_count
-
 def find_shortest_route_direction(x1, x2):
     """
         x-axis:
@@ -59,13 +40,6 @@ def find_shortest_route_direction(x1, x2):
         return -1
     else:
         return 0
-
-def swap_cores(seq, core1, core2):
-    if seq[core2] == -1:
-        empty_cores = [i for i, value in enumerate(seq) if value == -1]
-        core2 = np.random.choice(empty_cores)
-    seq[core1], seq[core2] = seq[core2], seq[core1]
-    return core1, core2
 
 def visualise_perf(filename, optimisers, labels):
     for i, opt in enumerate(optimisers):
@@ -85,7 +59,7 @@ def visualise_perf(filename, optimisers, labels):
 def router_index_to_coordinates(idx, n_cols):
     x = idx // n_cols
     y = idx % n_cols
-    return (x, y)
+    return (int(x), int(y))
 
 
 def core_modification_new_routes(core_graph, modified_cores, core_mapping_coord, n_cols, routes):
@@ -183,8 +157,6 @@ def non_dominated_sorting(fitnesses):
 
 def visualize_objective_space(filename, list_pareto_fronts, fitnesses, title, figsize, labels, alpha=1):
     for opt, pareto_fronts in list_pareto_fronts.items():
-        # print(opt)
-        # print(pareto_fronts)
         front = pareto_fronts[0]
         non_dominated = np.array([
             solution for solution in fitnesses[opt][front]
@@ -210,4 +182,23 @@ def visualize_objective_space(filename, list_pareto_fronts, fitnesses, title, fi
     plt.xlabel(labels[0])
     plt.ylabel(labels[1])
     plt.savefig(filename)
+
+
+
+def record_population(record_folder, iteration, population, is_solution=False):
+    with open(f'{record_folder}_fitness_{iteration}.txt', 'w') as f:
+        writer = csv.writer(f, delimiter=' ')
+        for noc in population:
+            writer.writerow([noc.energy_consumption, noc.load_balance])
+    if is_solution:
+        with open(f'{record_folder}_mapping_{iteration}.txt', 'w') as f:
+            writer = csv.writer(f, delimiter=' ')
+            for noc in population:
+                writer.writerow(noc.mapping_seq)
+
+        with open(f'{record_folder}_route_{iteration}.txt', 'w') as f:
+            writer = csv.writer(f, delimiter=' ')
+            for noc in population:
+                writer.writerows(noc.routes)
+
 

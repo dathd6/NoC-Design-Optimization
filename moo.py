@@ -1,39 +1,63 @@
-import csv
 import numpy as np
-import seaborn as sns
-import matplotlib.pyplot as plt
-from pymoo.indicators.hv import HV
 
 from constants import NUMBER_OF_OBJECTIVES
-from noc import NetworkOnChip
+from noc import calc_energy_consumption, calc_load_balance, get_router_mappings, random_core_mapping, random_shortest_routing
+
+def is_dominated(solution1, solution2):
+    if solution1[0] == solution1[0] and solution2[1] == solution2[1]:
+        return False
+    if solution1[0] <= solution2[0] and solution1[1] <= solution2[1]:
+        return True
+    return False
 
 class MultiObjectiveOptimization:
-    def __init__(self, record_folder=None, population=np.array([])):
-        self.record_folder = record_folder
+    def __init__(self, mesh_2d_shape, n_cores, es_bit, el_bit, core_graph, population=np.array([]), fitnesses=np.array([])):
         self.n_iters = 0
         self.population = population
+        self.f = fitnesses
         self.size_p = len(population)
         self.pareto_fronts = []
         self.perf_metrics = []
 
-    def intialize_population(self, n_solutions, n_cores, mesh_2d_shape, es_bit, el_bit, core_graph):
-        n_rows, n_cols = mesh_2d_shape
-        population = []
+        self.n_cores = n_cores
+        self.n_rows, self.n_cols = mesh_2d_shape
+        self.es_bit = es_bit
+        self.el_bit = el_bit
+        self.core_graph = core_graph
+
+    def intialize_random_mapping_sequences(self, n_solutions):
         self.size_p = n_solutions
+        mapping_seqs = []
         for _ in range(n_solutions):
-            solution = NetworkOnChip(
-                n_cores=n_cores,
-                n_rows=n_rows,
-                n_cols=n_cols,
-                es_bit=es_bit,
-                el_bit=el_bit,
-                core_graph=core_graph
-            )
-            population.append(solution)
-        self.population = np.array(population)
-        # Get 
-        ref_point = self.get_nadir()
-        self.ind = HV(ref_point=ref_point + 0.5)
+            mapping_seq = random_core_mapping(self.n_cores, self.n_rows, self.n_cols)
+            mapping_seqs.append(mapping_seq)
+        self.mapping_seqs = np.array(mapping_seqs)
+        return self.mapping_seqs
+
+    def intialize_shortest_routing_task(self, mapping_seqs):
+        self.route_paths = []
+        for mapping_seq in mapping_seqs:
+            routes = random_shortest_routing(self.core_graph, mapping_seq, self.n_cols)
+            self.route_paths.append(routes)
+        return self.route_paths
+
+    def evaluation(self):
+        f1 = calc_energy_consumption(
+            mapping_seqs=self.mapping_seqs,
+            n_cols=self.n_cols,
+            core_graph=self.core_graph,
+            es_bit=self.es_bit,
+            el_bit=self.el_bit,
+        ).reshape(-1, 1)
+        f2 = calc_load_balance(
+            n_rows=self.n_rows,
+            n_cols=self.n_cols,
+            mapping_seqs=self.mapping_seqs,
+            route_paths=self.route_paths,
+            core_graph=self.core_graph,
+        ).reshape(-1, 1)
+
+        self.f = np.concatenate((f1, f2), axis=1) 
             
     def non_dominated_sorting(self):
         """Fast non-dominated sorting to get list Pareto Fronts"""
@@ -43,13 +67,13 @@ class MultiObjectiveOptimization:
         # For each solution:
         # - Get solution index that dominated by current solution
         # - Count number of solution dominated current solution
-        for solution_1 in self.population:
+        for solution_1 in self.f:
             current_dominating_set = set()
             dominated_counts.append(0)
-            for i, solution_2 in enumerate(self.population):
-                if solution_1 >= solution_2 and not solution_1 == solution_2:
-                    current_dominating_set.add(i)
-                elif solution_2 >= solution_1 and not solution_2 == solution_1:
+            for j, solution_2 in enumerate(self.f):
+                if is_dominated(solution_1, solution_2):
+                    current_dominating_set.add(j)
+                elif is_dominated(solution_2, solution_1):
                     dominated_counts[-1] += 1
             dominating_sets.append(current_dominating_set)
 
@@ -69,10 +93,9 @@ class MultiObjectiveOptimization:
                     dominated_counts[dominated_by_current] -= 1
 
     def get_nadir(self):
-        fitnesses = np.array([solution.get_fitness(is_flag=False) for solution in self.population])
         nadir = []
         for i in range(NUMBER_OF_OBJECTIVES):
-            nadir.append(fitnesses[:, i].max())
+            nadir.append(self.f[:, i].max())
         return np.array(nadir)
 
     def calc_performance_metric(self):
@@ -82,22 +105,6 @@ class MultiObjectiveOptimization:
         self.perf_metrics.append(
             [self.n_iters, self.ind(solutions)]
         )
-
-    def record_population(self, is_solution=False):
-        with open(f'{self.record_folder}_fitness_{self.n_iters}.txt', 'w') as f:
-            writer = csv.writer(f, delimiter=' ')
-            for noc in self.population:
-                writer.writerow([noc.energy_consumption, noc.avg_load_degree])
-        if is_solution:
-            with open(f'{self.record_folder}_mapping_{self.n_iters}.txt', 'w') as f:
-                writer = csv.writer(f, delimiter=' ')
-                for noc in self.population:
-                    writer.writerow(noc.mapping_seq)
-
-            with open(f'{self.record_folder}_route_{self.n_iters}.txt', 'w') as f:
-                writer = csv.writer(f, delimiter=' ')
-                for noc in self.population:
-                    writer.writerows(noc.routes)
 
     def optimize(self):
         pass
