@@ -31,10 +31,17 @@ if __name__ == "__main__":
     
     final_population = {}
     nsga_ii = []
-    bilevel = []
-    for opt in OPTIMISERS:
+    bilevel_upper_bo_nsga_ii = []
+    bilevel_lower_bo_nsga_ii = []
+    bilevel_lower_bo = []
+    bilevel_upper_bo = []
+    bilevel_lower_ga = []
+    bilevel_upper_ga = []
+
+    for opt in ['upper_level_BO']:
         for i in range(n_experiments):
             EXPERIMENT_DIR = os.path.join(RECORDED_DIR, f'experiment_{i}')
+            items = os.listdir(EXPERIMENT_DIR)
             n_files = count_dir(EXPERIMENT_DIR, opt)
             f_exp = []
             for j in range(n_files):

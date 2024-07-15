@@ -183,22 +183,33 @@ def visualize_objective_space(filename, list_pareto_fronts, fitnesses, title, fi
     plt.ylabel(labels[1])
     plt.savefig(filename)
 
-
-
-def record_population(record_folder, iteration, population, is_solution=False):
-    with open(f'{record_folder}_fitness_{iteration}.txt', 'w') as f:
+def record_others(record_folder, filename, recording):
+    with open(f'{record_folder}/{filename}.txt', 'w') as f:
         writer = csv.writer(f, delimiter=' ')
-        for noc in population:
-            writer.writerow([noc.energy_consumption, noc.load_balance])
-    if is_solution:
-        with open(f'{record_folder}_mapping_{iteration}.txt', 'w') as f:
-            writer = csv.writer(f, delimiter=' ')
-            for noc in population:
-                writer.writerow(noc.mapping_seq)
+        writer.writerow(str(recording))
 
-        with open(f'{record_folder}_route_{iteration}.txt', 'w') as f:
+def record_fitnesses(record_folder, filename, iteration, fitnesses):
+    with open(f'{record_folder}/{filename}_fitness_{iteration}.txt', 'w') as f:
+        writer = csv.writer(f, delimiter=' ')
+        for fitness in fitnesses:
+            writer.writerow(fitness)
+
+def record_population(record_folder, filename, population, n_objectives=1):
+    if n_objectives == 1:
+        with open(f'{record_folder}/{filename}.txt', 'w') as f:
             writer = csv.writer(f, delimiter=' ')
-            for noc in population:
-                writer.writerows(noc.routes)
+            for solution in population:
+                writer.writerow(solution)
+
+    if n_objectives == 2:
+        with open(f'{record_folder}/{filename}_mapping.txt', 'w') as f:
+            writer = csv.writer(f, delimiter=' ')
+            for solution in population:
+                writer.writerow(solution[0])
+
+        with open(f'{record_folder}/{filename}_route.txt', 'w') as f:
+            writer = csv.writer(f, delimiter=' ')
+            for solution in population:
+                writer.writerows(solution[1])
 
 

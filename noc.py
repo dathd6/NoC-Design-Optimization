@@ -3,6 +3,7 @@ import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 import networkx as nx
+from optimisers.genetic_algorithm import mutation_heuristic_routing
 
 from utils import find_shortest_route_direction, router_index_to_coordinates
 
@@ -14,19 +15,18 @@ def get_core_mappings(router_mappings, n_routers):
     core_mappings.append(core_mapping)
     return np.array(core_mappings)
 
-def get_router_mappings(core_mappings, n_cores):
+def get_router_mappings(core_mappings):
     router_mappings = []
     for core_mapping in core_mappings:
-        router_mapping = np.zeros(n_cores)
+        router_mapping = {}
         for i, c in enumerate(core_mapping):
             if c != -1:
                 router_mapping[c] = i
         router_mappings.append(router_mapping)
-    return np.array(router_mappings)
+    return router_mappings
 
 def calc_energy_consumption(mapping_seqs, n_cols, core_graph, es_bit, el_bit):
-    n_cores = len(core_graph)
-    router_mappings = get_router_mappings(mapping_seqs, n_cores)
+    router_mappings = get_router_mappings(mapping_seqs)
     energy_consumption = np.zeros(len(mapping_seqs))
     for i in range(len(router_mappings)):
         router_mapping = router_mappings[i]
@@ -38,13 +38,76 @@ def calc_energy_consumption(mapping_seqs, n_cols, core_graph, es_bit, el_bit):
                 (n_hops + 1) * es_bit + n_hops * el_bit
     return energy_consumption
 
+def calc_energy_consumption_with_static_mapping_sequence(routing_paths, es_bit, el_bit):
+    energy_consumption = np.zeros(len(routing_paths))
+
+    for i in range(len(routing_paths)):
+        for routing_path in routing_paths[i]:
+            n_hops = len(routing_path)
+            energy_consumption[i] = energy_consumption[i] + \
+                (n_hops + 1) * es_bit + n_hops * el_bit
+
+    return energy_consumption
+
+def calc_load_balance_with_static_mapping_sequence(n_cols, n_rows, route_paths, mapping_seq, core_graph):
+    size_p = len(route_paths)
+    load_balance = np.zeros(size_p)
+    n_routers = n_rows * n_cols
+
+    seq = get_router_mappings([mapping_seq])[0]
+
+    for k in range(size_p):
+        bw_throughput = np.zeros(n_routers)   # Bandwidth throughput in each router
+        task_count = np.zeros(n_routers)   # Bandwidth throughput in each router
+
+        route_path = route_paths[k]
+        
+        for i in range(len(core_graph)):
+            src, des, bw = core_graph[i]
+
+            tc = np.zeros(n_routers)
+            r_src = int(seq[src])
+            tc[r_src] = 1
+            for step in route_path[i]:
+                r_src = r_src + step
+                tc[r_src] = 1
+
+            bw_throughput = bw_throughput + tc * bw
+            task_count = task_count + tc
+            
+        # Calculate the total bandwidth
+        total_bw = 0
+        for _, _, bw in core_graph:
+            total_bw += bw
+
+        load_degree = []
+        for bw in bw_throughput:
+            load_degree.append(bw / total_bw)
+
+        avg_load_degree = 0
+        # Search all router that has task count
+        # and calculate the load degree at that router
+        # --> calculate the total load degree --> average load degree
+        for i in range(n_routers):
+            if (task_count[i] == 0):
+                continue
+            avg_load_degree = avg_load_degree + load_degree[i] / task_count[i]
+        avg_load_degree = avg_load_degree / n_routers
+
+        lb = 0
+        for i in range(n_routers):
+            lb = lb + np.abs(load_degree[i] - avg_load_degree)
+
+        load_balance[k] = lb
+
+    return load_balance
+
 def calc_load_balance(n_cols, n_rows, route_paths, mapping_seqs, core_graph):
     size_p = len(route_paths)
     load_balance = np.zeros(size_p)
-    n_cores = len(core_graph)
     n_routers = n_rows * n_cols
 
-    r_mapping_seqs = get_router_mappings(mapping_seqs, n_cores)
+    r_mapping_seqs = get_router_mappings(mapping_seqs)
 
     for k in range(size_p):
         bw_throughput = np.zeros(n_routers)   # Bandwidth throughput in each router
@@ -53,7 +116,7 @@ def calc_load_balance(n_cols, n_rows, route_paths, mapping_seqs, core_graph):
         route_path = route_paths[k]
         r_mapping_seq = r_mapping_seqs[k]
 
-        for i in range(n_cores):
+        for i in range(len(core_graph)):
             src, des, bw = core_graph[i]
             # get x, y coordinate of each router in 2d mesh
             r1_x, r1_y = router_index_to_coordinates(r_mapping_seq[src], n_cols)
@@ -109,14 +172,44 @@ def random_core_mapping(n_cores, n_rows, n_cols):
 
     return mapping_seq
 
-def random_shortest_routing(core_graph, mapping_seq, n_cols):
-    # Random routing
-    n_cores = len(core_graph)
+def random_routing(core_graph, mapping_seq, n_rows, n_cols):
     route_path = []
 
-    seq = get_router_mappings([mapping_seq], n_cores)[0]
+    seq = get_router_mappings([mapping_seq])[0]
 
-    for i in range(n_cores):
+    for i in range(len(core_graph)):
+        src, des, _ = core_graph[i]
+        # get x, y coordinate of each router in 2d mesh
+        r1_x, r1_y = router_index_to_coordinates(seq[src], n_cols)
+        r2_x, r2_y = router_index_to_coordinates(seq[des], n_cols)
+        x_step = find_shortest_route_direction(r1_x, r2_x) * n_cols
+        y_step = find_shortest_route_direction(r1_y, r2_y)
+        # Generate random route (number of feasible routes is |x1 - x2| * |y1 - y2|)
+        route = [x_step] * abs(r1_x - r2_x) + [y_step] * abs(r1_y - r2_y)
+
+        np.random.shuffle(route)
+
+        route_path.append(np.array(route))
+    
+    for i in range(np.random.choice(4)):
+        route_path = mutation_heuristic_routing(
+            parent=route_path,
+            core_graph=core_graph,
+            n_rows=n_rows,
+            n_cols=n_cols,
+            mapping_seq=mapping_seq,
+            rate=1)
+
+    return route_path
+
+
+def random_shortest_routing(core_graph, mapping_seq, n_cols):
+    # Random routing
+    route_path = []
+
+    seq = get_router_mappings([mapping_seq])[0]
+
+    for i in range(len(core_graph)):
         src, des, _ = core_graph[i]
         # get x, y coordinate of each router in 2d mesh
         r1_x, r1_y = router_index_to_coordinates(seq[src], n_cols)

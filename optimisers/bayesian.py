@@ -7,6 +7,7 @@ from scipy.stats import norm
 from moo import MultiObjectiveOptimization
 from noc import calc_energy_consumption
 from optimisers.genetic_algorithm import single_swap_mutation, partially_mapped_crossover
+from utils import record_fitnesses, record_others, record_population
 
 def EI(x, gaussian_process, f_best):
     mu,sigma = gaussian_process.predict(x.reshape(1, -1),return_std=True)
@@ -20,13 +21,15 @@ class BayesianOptimization(MultiObjectiveOptimization):
         super().__init__(mesh_2d_shape, n_cores, es_bit, el_bit, core_graph, population, fitnesses)
 
     # Optimize Energy Consumption
-    def optimize(self, n_iterations):
+    def optimize(self, folder_name, n_iterations):
         X = self.population
         f = self.f
         opt_time = 0
         while self.n_iters < n_iterations:
             # Starting time and Iteration
             start_time = time()
+
+            record_fitnesses(folder_name, 'upper_level_BO', self.n_iters, self.f.reshape(-1, 1))
 
             # Normalisation
             f_train = (f - np.min(f))/(np.max(f) - np.min(f))
@@ -72,6 +75,10 @@ class BayesianOptimization(MultiObjectiveOptimization):
             opt_time += (time() - start_time)
             print(f'Bilvel upper level - Bayesian Optimization Iteration: {self.n_iters + 1} - Time: {opt_time}s')
             self.n_iters = self.n_iters + 1
+
+        record_fitnesses(folder_name, 'upper_level_BO', self.n_iters, self.f.reshape(-1, 1))
+        record_others(folder_name, 'upper_level_BO_execution_time', opt_time)
+        record_population(folder_name, 'upper_level_optimal_BO', [self.population[0]], n_objectives=1)
 
         idx = np.argmin(f)
         return opt_time, X[idx], f[idx]

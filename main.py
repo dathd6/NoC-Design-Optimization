@@ -1,7 +1,7 @@
 import os
 from argparse import ArgumentParser
 from moo import MultiObjectiveOptimization
-from noc import calc_load_balance
+from noc import calc_energy_consumption_with_static_mapping_sequence, calc_load_balance, calc_load_balance_with_static_mapping_sequence, get_router_mappings
 from optimisers.bilevel import Bilevel
 import numpy as np
 from optimisers.nsga_ii import NSGA_II
@@ -66,6 +66,39 @@ if __name__ == "__main__":
         population = []
         for i in range(moo.size_p):
             population.append([moo.mapping_seqs[i], moo.route_paths[i]])
+
+        bil_bo_nsga_ii = Bilevel(
+            n_cores=n_cores,
+            es_bit=es_bit,
+            el_bit=el_bit,
+            mesh_2d_shape=(n_rows, n_cols),
+            core_graph=data,
+            population=moo.mapping_seqs.copy(),
+            fitnesses=moo.f[:, 0].copy()
+        )
+        upper_opt_time0, upper_optimal_mapping_seq0, upper_fitness0 = bil_bo_nsga_ii.optimize_upper_level_BO(folder_name=TEST_CASE_DIR, n_iterations=100)
+        bil_bo_nsga_ii.population = bil_bo_nsga_ii.initialize_routing_task(n_solutions=n_solutions, mapping_seq=upper_optimal_mapping_seq0)
+
+        f1 = calc_energy_consumption_with_static_mapping_sequence(
+            routing_paths=bil_bo_nsga_ii.population,
+            es_bit=es_bit,
+            el_bit=el_bit,
+        ).reshape(-1, 1)
+        f2 = calc_load_balance_with_static_mapping_sequence(
+            n_rows=n_rows,
+            n_cols=n_cols,
+            mapping_seq=upper_optimal_mapping_seq0,
+            route_paths=bil_bo_nsga_ii.population,
+            core_graph=data,
+        ).reshape(-1, 1)
+        bil_bo_nsga_ii.f = np.concatenate((f1, f2), axis=1)
+        lower_opt_time0, lower_f0 = bil_bo_nsga_ii.optimize_lower_level_moo(
+            folder_name=TEST_CASE_DIR,
+            mapping_seq=upper_optimal_mapping_seq0,
+            n_iterations=1000,
+            tournament_size=20
+        )
+
         nsga_ii = NSGA_II(
             n_cores=n_cores,
             es_bit=es_bit,
@@ -75,7 +108,7 @@ if __name__ == "__main__":
             population=population,
             fitnesses=moo.f.copy()
         )
-        nsga_ii.optimize(tournament_size=20)
+        nsga_ii.optimize(folder_name=TEST_CASE_DIR, tournament_size=20)
 
         bil_bo = Bilevel(
             n_cores=n_cores,
@@ -86,7 +119,7 @@ if __name__ == "__main__":
             population=moo.mapping_seqs.copy(),
             fitnesses=moo.f[:, 0].copy()
         )
-        upper_opt_time1, upper_optimal_mapping_seq1, upper_fitness1 = bil_bo.optimize_upper_level_BO(n_iterations=50)
+        upper_opt_time1, upper_optimal_mapping_seq1, upper_fitness1 = bil_bo.optimize_upper_level_BO(folder_name=TEST_CASE_DIR, n_iterations=50)
         mapping_seqs = np.array(n_solutions * list(upper_optimal_mapping_seq1.reshape(1, -1)))
         bil_bo.population = bil_bo.intialize_shortest_routing_task(mapping_seqs)
         bil_bo.f = calc_load_balance(
@@ -97,6 +130,7 @@ if __name__ == "__main__":
             core_graph=moo.core_graph,
         )
         lower_opt_time1, lower_optimal_route1, lower_fitness1 = bil_bo.optimize_lower_level(
+            folder_name=TEST_CASE_DIR,
             mapping_seq=upper_optimal_mapping_seq1,
             n_iterations=1000,
             tournament_size=20
@@ -111,7 +145,7 @@ if __name__ == "__main__":
             population=moo.mapping_seqs.copy(),
             fitnesses=moo.f[:, 0].copy()
         )
-        upper_opt_time2, upper_optimal_mapping_seq2, upper_fitness2 = bil_ga.optimize_upper_level_GA(n_iterations=1000, tournament_size=n_tournaments)
+        upper_opt_time2, upper_optimal_mapping_seq2, upper_fitness2 = bil_ga.optimize_upper_level_GA(folder_name=TEST_CASE_DIR, n_iterations=1000, tournament_size=n_tournaments)
         mapping_seqs = np.array(n_solutions * list(upper_optimal_mapping_seq2.reshape(1, -1)))
         bil_ga.population = bil_ga.intialize_shortest_routing_task(mapping_seqs)
         bil_ga.f = calc_load_balance(
@@ -122,27 +156,9 @@ if __name__ == "__main__":
             core_graph=moo.core_graph,
         )
         lower_opt_time2, lower_optimal_route2, lower_fitness2 = bil_ga.optimize_lower_level(
+            folder_name=TEST_CASE_DIR,
             mapping_seq=upper_optimal_mapping_seq2,
             n_iterations=1000,
             tournament_size=20
         )
-
-        print(upper_opt_time1, upper_optimal_mapping_seq1, upper_fitness1)
-        print(lower_opt_time1, lower_optimal_route1, lower_fitness1)
-
-        print(upper_opt_time2, upper_optimal_mapping_seq2, upper_fitness2)
-        print(lower_opt_time2, lower_optimal_route2, lower_fitness2)
-
-        # For every optimiser run optimization
-        # optimisers = [
-        #     ('NSGA-II', NSGA_II), 
-        #     ('Bi-level', Bilevel)
-        # ]
-        # for name, optimiser in optimisers:
-        #     record_folder = os.path.join(TEST_CASE_DIR, name)
-        #     opt = optimiser(
-        #         record_folder=record_folder,
-        #         n_tournaments=n_tournaments,
-        #         population=population
-        #     )
-        #     opt.optimize(n_iterations=n_iterations)
+        print('END!!!!!!!!!!!')

@@ -1,7 +1,7 @@
 import numpy as np
 
 from constants import NUMBER_OF_OBJECTIVES
-from noc import calc_energy_consumption, calc_load_balance, get_router_mappings, random_core_mapping, random_shortest_routing
+from noc import calc_energy_consumption, calc_load_balance, get_router_mappings, random_core_mapping, random_routing, random_shortest_routing
 
 def is_dominated(solution1, solution2):
     if solution1[0] == solution1[0] and solution2[1] == solution2[1]:
@@ -34,10 +34,21 @@ class MultiObjectiveOptimization:
         self.mapping_seqs = np.array(mapping_seqs)
         return self.mapping_seqs
 
+    def initialize_routing_task(self, n_solutions, mapping_seq):
+        self.route_paths = []
+        for _ in range(n_solutions):
+            routes = random_routing(self.core_graph, mapping_seq, self.n_rows, self.n_cols)
+            self.route_paths.append(routes)
+        return self.route_paths
+
     def intialize_shortest_routing_task(self, mapping_seqs):
         self.route_paths = []
         for mapping_seq in mapping_seqs:
-            routes = random_shortest_routing(self.core_graph, mapping_seq, self.n_cols)
+            routes = random_shortest_routing(
+                self.core_graph,
+                mapping_seq,
+                self.n_cols
+            )
             self.route_paths.append(routes)
         return self.route_paths
 
