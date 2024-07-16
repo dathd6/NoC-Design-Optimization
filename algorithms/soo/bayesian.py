@@ -4,10 +4,10 @@ from sklearn.gaussian_process.kernels import RBF
 from sklearn.gaussian_process import GaussianProcessRegressor
 from scipy.stats import norm
 
-from moo import MultiObjectiveOptimization
-from noc import calc_energy_consumption
-from optimisers.genetic_algorithm import single_swap_mutation, partially_mapped_crossover
-from utils import record_fitnesses, record_others, record_population
+from algorithms.base import BaseOptimiser
+from core.crossover import partially_mapped_crossover
+from core.mutation import single_swap_mutation
+from problem.noc import calc_energy_consumption
 
 def EI(x, gaussian_process, f_best):
     mu,sigma = gaussian_process.predict(x.reshape(1, -1),return_std=True)
@@ -16,20 +16,20 @@ def EI(x, gaussian_process, f_best):
     EI = EI.reshape(-1)
     return EI
 
-class BayesianOptimization(MultiObjectiveOptimization):
+class BayesianOptimization(BaseOptimiser):
     def __init__(self, mesh_2d_shape, n_cores, es_bit, el_bit, core_graph, population=np.array([]), fitnesses=np.array([])):
         super().__init__(mesh_2d_shape, n_cores, es_bit, el_bit, core_graph, population, fitnesses)
 
     # Optimize Energy Consumption
-    def optimize(self, folder_name, n_iterations):
-        X = self.population
+    def optimize(self, filename, folder_name, n_iterations):
+        X = np.array(self.population)
         f = self.f
         opt_time = 0
         while self.n_iters < n_iterations:
             # Starting time and Iteration
             start_time = time()
 
-            record_fitnesses(folder_name, 'upper_level_BO', self.n_iters, self.f.reshape(-1, 1))
+            self.record(folder_name, filename, opt_time, self.f.reshape(-1, 1), [self.population[0]], n_variables=1)
 
             # Normalisation
             f_train = (f - np.min(f))/(np.max(f) - np.min(f))
@@ -46,15 +46,17 @@ class BayesianOptimization(MultiObjectiveOptimization):
             x_new = None
             for _ in range(self.n_iters):
                 x_sample = X[np.random.randint(len(X))]
-                x, _ = partially_mapped_crossover(x0, x_sample)
-                x = single_swap_mutation(x)
+                x1, x2 = partially_mapped_crossover(x0, x_sample)
+                x1 = single_swap_mutation(x1)
+                x2 = single_swap_mutation(x2)
 
-                # X_new = np.concatenate((X, x.reshape(1, -1)), axis=0)
-                ei = EI(np.array(x), gp_model, f_best)
-                if ei_0 > ei:
-                    ei_0 = ei
-                    x0 = x
-                    x_new = x
+                ei = np.inf
+                for x in [x1, x2]:
+                    ei = EI(np.array(x), gp_model, f_best)
+                    if ei_0 > ei:
+                        ei_0 = ei
+                        x0 = x
+                        x_new = x
 
                 if np.abs(ei - ei_0) < 1e-6:
                     break
@@ -73,12 +75,11 @@ class BayesianOptimization(MultiObjectiveOptimization):
 
             # Save execution time
             opt_time += (time() - start_time)
-            print(f'Bilvel upper level - Bayesian Optimization Iteration: {self.n_iters + 1} - Time: {opt_time}s')
+            print(f'\r\tBayesian Optimization Iteration: {self.n_iters + 1} - Time: {opt_time}s', end='')
             self.n_iters = self.n_iters + 1
 
-        record_fitnesses(folder_name, 'upper_level_BO', self.n_iters, self.f.reshape(-1, 1))
-        record_others(folder_name, 'upper_level_BO_execution_time', opt_time)
-        record_population(folder_name, 'upper_level_optimal_BO', [self.population[0]], n_objectives=1)
+        self.record(folder_name, filename, opt_time, self.f.reshape(-1, 1), [self.population[0]], n_variables=1)
 
         idx = np.argmin(f)
+        print('\n')
         return opt_time, X[idx], f[idx]

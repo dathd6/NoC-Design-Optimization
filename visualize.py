@@ -38,7 +38,7 @@ if __name__ == "__main__":
     bilevel_lower_ga = []
     bilevel_upper_ga = []
 
-    for opt in ['upper_level_BO']:
+    for opt in ['upper_level_BO_fitness', 'lower_level_BO']:
         for i in range(n_experiments):
             EXPERIMENT_DIR = os.path.join(RECORDED_DIR, f'experiment_{i}')
             items = os.listdir(EXPERIMENT_DIR)

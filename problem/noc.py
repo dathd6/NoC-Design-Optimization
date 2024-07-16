@@ -3,36 +3,80 @@ import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 import networkx as nx
-from optimisers.genetic_algorithm import mutation_heuristic_routing
 
-from utils import find_shortest_route_direction, router_index_to_coordinates
+def find_shortest_route_direction(x1, x2):
+    if x1 < x2:
+        return 1
+    elif x1 > x2:
+        return -1
+    else:
+        return 0
 
-def get_core_mappings(router_mappings, n_routers):
-    core_mappings = []
-    core_mapping = -np.ones(n_routers)
-    for i, r in enumerate(router_mappings):
-        core_mapping[r] = i
-    core_mappings.append(core_mapping)
-    return np.array(core_mappings)
+def router_index_to_coordinates(idx, n_cols):
+    x = idx // n_cols
+    y = idx % n_cols
+    return (int(x), int(y))
 
-def get_router_mappings(core_mappings):
-    router_mappings = []
-    for core_mapping in core_mappings:
-        router_mapping = {}
-        for i, c in enumerate(core_mapping):
-            if c != -1:
-                router_mapping[c] = i
-        router_mappings.append(router_mapping)
-    return router_mappings
+def get_core_mapping_dict(core_mapping):
+    core_mapping_dict = {}
+    for i, c in enumerate(core_mapping):
+        if c != -1:
+            core_mapping_dict[c] = i
+    return core_mapping_dict
+
+def random_shortest_routing(core_graph, mapping_seq, n_cols, direction=False):
+    # Random routing
+    route_path = []
+
+    mapping_dict = get_core_mapping_dict(mapping_seq)
+
+    for i in range(len(core_graph)):
+        src, des, _ = core_graph[i]
+        # get x, y coordinate of each router in 2d mesh
+        r1_x, r1_y = router_index_to_coordinates(mapping_dict[src], n_cols)
+        r2_x, r2_y = router_index_to_coordinates(mapping_dict[des], n_cols)
+        # Generate random route (number of feasible routes is |x1 - x2| * |y1 - y2|)
+        if not direction:
+            x_step = 0
+            y_step = 1
+        else:
+            # Get the direction of x and y when finding the shortest route from router 1 to router 2
+            x_dir = find_shortest_route_direction(r1_x, r2_x)
+            y_dir = find_shortest_route_direction(r1_y, r2_y)
+            x_step = x_dir * n_cols
+            y_step = y_dir
+        route = [x_step] * abs(r1_x - r2_x) + [y_step] * abs(r1_y - r2_y)
+        np.random.shuffle(route)
+
+        route_path.append(np.array(route))
+
+    return route_path
+
+def evaluation(self):
+    f1 = calc_energy_consumption(
+        mapping_seqs=self.mapping_seqs,
+        n_cols=self.n_cols,
+        core_graph=self.core_graph,
+        es_bit=self.es_bit,
+        el_bit=self.el_bit,
+    ).reshape(-1, 1)
+    f2 = calc_load_balance(
+        n_rows=self.n_rows,
+        n_cols=self.n_cols,
+        mapping_seqs=self.mapping_seqs,
+        route_paths=self.route_paths,
+        core_graph=self.core_graph,
+    ).reshape(-1, 1)
+
+    self.f = np.concatenate((f1, f2), axis=1) 
 
 def calc_energy_consumption(mapping_seqs, n_cols, core_graph, es_bit, el_bit):
-    router_mappings = get_router_mappings(mapping_seqs)
     energy_consumption = np.zeros(len(mapping_seqs))
-    for i in range(len(router_mappings)):
-        router_mapping = router_mappings[i]
+    for i in range(len(mapping_seqs)):
+        m_dict = get_core_mapping_dict(mapping_seqs[i])
         for c1, c2, _ in core_graph:
-            x1, y1 = router_index_to_coordinates(router_mapping[c1], n_cols)
-            x2, y2 = router_index_to_coordinates(router_mapping[c2], n_cols)
+            x1, y1 = router_index_to_coordinates(m_dict[c1], n_cols)
+            x2, y2 = router_index_to_coordinates(m_dict[c2], n_cols)
             n_hops = np.abs(x1 - x2) + np.abs(y1 - y2)
             energy_consumption[i] = energy_consumption[i] + \
                 (n_hops + 1) * es_bit + n_hops * el_bit
@@ -54,7 +98,7 @@ def calc_load_balance_with_static_mapping_sequence(n_cols, n_rows, route_paths, 
     load_balance = np.zeros(size_p)
     n_routers = n_rows * n_cols
 
-    seq = get_router_mappings([mapping_seq])[0]
+    seq = get_core_mapping_dict(mapping_seq)
 
     for k in range(size_p):
         bw_throughput = np.zeros(n_routers)   # Bandwidth throughput in each router
@@ -63,7 +107,7 @@ def calc_load_balance_with_static_mapping_sequence(n_cols, n_rows, route_paths, 
         route_path = route_paths[k]
         
         for i in range(len(core_graph)):
-            src, des, bw = core_graph[i]
+            src, _, bw = core_graph[i]
 
             tc = np.zeros(n_routers)
             r_src = int(seq[src])
@@ -107,26 +151,25 @@ def calc_load_balance(n_cols, n_rows, route_paths, mapping_seqs, core_graph):
     load_balance = np.zeros(size_p)
     n_routers = n_rows * n_cols
 
-    r_mapping_seqs = get_router_mappings(mapping_seqs)
 
     for k in range(size_p):
         bw_throughput = np.zeros(n_routers)   # Bandwidth throughput in each router
         task_count = np.zeros(n_routers)   # Bandwidth throughput in each router
 
         route_path = route_paths[k]
-        r_mapping_seq = r_mapping_seqs[k]
+        m_dict = get_core_mapping_dict(mapping_seqs[k])
 
         for i in range(len(core_graph)):
             src, des, bw = core_graph[i]
             # get x, y coordinate of each router in 2d mesh
-            r1_x, r1_y = router_index_to_coordinates(r_mapping_seq[src], n_cols)
-            r2_x, r2_y = router_index_to_coordinates(r_mapping_seq[des], n_cols)
+            r1_x, r1_y = router_index_to_coordinates(m_dict[src], n_cols)
+            r2_x, r2_y = router_index_to_coordinates(m_dict[des], n_cols)
             # Get the direction of x and y when finding the shortest route from router 1 to router 2
             x_dir = find_shortest_route_direction(r1_x, r2_x)
             y_dir = find_shortest_route_direction(r1_y, r2_y)
 
             tc = np.zeros(n_routers)
-            r_src = int(r_mapping_seq[src])
+            r_src = int(m_dict[src])
             tc[r_src] = 1
             for step in route_path[i]:
                 if step == 0:
@@ -171,56 +214,6 @@ def random_core_mapping(n_cores, n_rows, n_cols):
     np.random.shuffle(mapping_seq)
 
     return mapping_seq
-
-def random_routing(core_graph, mapping_seq, n_rows, n_cols):
-    route_path = []
-
-    seq = get_router_mappings([mapping_seq])[0]
-
-    for i in range(len(core_graph)):
-        src, des, _ = core_graph[i]
-        # get x, y coordinate of each router in 2d mesh
-        r1_x, r1_y = router_index_to_coordinates(seq[src], n_cols)
-        r2_x, r2_y = router_index_to_coordinates(seq[des], n_cols)
-        x_step = find_shortest_route_direction(r1_x, r2_x) * n_cols
-        y_step = find_shortest_route_direction(r1_y, r2_y)
-        # Generate random route (number of feasible routes is |x1 - x2| * |y1 - y2|)
-        route = [x_step] * abs(r1_x - r2_x) + [y_step] * abs(r1_y - r2_y)
-
-        np.random.shuffle(route)
-
-        route_path.append(np.array(route))
-    
-    for i in range(np.random.choice(4)):
-        route_path = mutation_heuristic_routing(
-            parent=route_path,
-            core_graph=core_graph,
-            n_rows=n_rows,
-            n_cols=n_cols,
-            mapping_seq=mapping_seq,
-            rate=1)
-
-    return route_path
-
-
-def random_shortest_routing(core_graph, mapping_seq, n_cols):
-    # Random routing
-    route_path = []
-
-    seq = get_router_mappings([mapping_seq])[0]
-
-    for i in range(len(core_graph)):
-        src, des, _ = core_graph[i]
-        # get x, y coordinate of each router in 2d mesh
-        r1_x, r1_y = router_index_to_coordinates(seq[src], n_cols)
-        r2_x, r2_y = router_index_to_coordinates(seq[des], n_cols)
-        # Generate random route (number of feasible routes is |x1 - x2| * |y1 - y2|)
-        route = [0] * abs(r1_x - r2_x) + [1] * abs(r1_y - r2_y)
-        np.random.shuffle(route)
-
-        route_path.append(np.array(route))
-
-    return route_path
 
 def visualize_core_graph(core_graph):
     # Set the aesthetic style of the plots
