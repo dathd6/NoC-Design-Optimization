@@ -61,5 +61,5 @@ class GeneticAlgorithm(BaseOptimiser):
         self.record(folder_name, filename, opt_time, self.f.reshape(-1, 1), [self.population[0]], n_variables=1)
 
         print('\n')
-        
+
         return opt_time, self.population[0], self.f[0]

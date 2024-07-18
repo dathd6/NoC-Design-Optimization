@@ -74,22 +74,23 @@ def calc_energy_consumption(mapping_seqs, n_cols, core_graph, es_bit, el_bit):
     energy_consumption = np.zeros(len(mapping_seqs))
     for i in range(len(mapping_seqs)):
         m_dict = get_core_mapping_dict(mapping_seqs[i])
-        for c1, c2, _ in core_graph:
+        for c1, c2, bw in core_graph:
             x1, y1 = router_index_to_coordinates(m_dict[c1], n_cols)
             x2, y2 = router_index_to_coordinates(m_dict[c2], n_cols)
             n_hops = np.abs(x1 - x2) + np.abs(y1 - y2)
             energy_consumption[i] = energy_consumption[i] + \
-                (n_hops + 1) * es_bit + n_hops * el_bit
+                ((n_hops + 1) * es_bit + n_hops * el_bit) * bw
     return energy_consumption
 
-def calc_energy_consumption_with_static_mapping_sequence(routing_paths, es_bit, el_bit):
+def calc_energy_consumption_with_static_mapping_sequence(routing_paths, core_graph, es_bit, el_bit):
     energy_consumption = np.zeros(len(routing_paths))
 
     for i in range(len(routing_paths)):
-        for routing_path in routing_paths[i]:
+        for j, routing_path in enumerate(routing_paths[i]):
+            _, _, bw = core_graph[j]
             n_hops = len(routing_path)
             energy_consumption[i] = energy_consumption[i] + \
-                (n_hops + 1) * es_bit + n_hops * el_bit
+                ((n_hops + 1) * es_bit + n_hops * el_bit) * bw
 
     return energy_consumption
 
@@ -126,7 +127,7 @@ def calc_load_balance_with_static_mapping_sequence(n_cols, n_rows, route_paths, 
 
         load_degree = []
         for bw in bw_throughput:
-            load_degree.append(bw / total_bw)
+            load_degree.append(bw)
 
         avg_load_degree = 0
         # Search all router that has task count
@@ -135,14 +136,14 @@ def calc_load_balance_with_static_mapping_sequence(n_cols, n_rows, route_paths, 
         for i in range(n_routers):
             if (task_count[i] == 0):
                 continue
-            avg_load_degree = avg_load_degree + load_degree[i] / task_count[i]
+            avg_load_degree = avg_load_degree + load_degree[i]
         avg_load_degree = avg_load_degree / n_routers
 
         lb = 0
         for i in range(n_routers):
-            lb = lb + np.abs(load_degree[i] - avg_load_degree)
+            lb = lb + (load_degree[i] - avg_load_degree) ** 2
 
-        load_balance[k] = lb
+        load_balance[k] = np.sqrt(lb / n_routers) / avg_load_degree
 
     return load_balance
 
@@ -188,23 +189,21 @@ def calc_load_balance(n_cols, n_rows, route_paths, mapping_seqs, core_graph):
 
         load_degree = []
         for bw in bw_throughput:
-            load_degree.append(bw / total_bw)
+            load_degree.append(bw)
 
         avg_load_degree = 0
         # Search all router that has task count
         # and calculate the load degree at that router
         # --> calculate the total load degree --> average load degree
         for i in range(n_routers):
-            if (task_count[i] == 0):
-                continue
-            avg_load_degree = avg_load_degree + load_degree[i] / task_count[i]
+            avg_load_degree = avg_load_degree + load_degree[i]
         avg_load_degree = avg_load_degree / n_routers
 
         lb = 0
         for i in range(n_routers):
-            lb = lb + np.abs(load_degree[i] - avg_load_degree)
+            lb = lb + (load_degree[i] - avg_load_degree) ** 2
 
-        load_balance[k] = lb
+        load_balance[k] = np.sqrt(lb / n_routers) / avg_load_degree
 
     return load_balance
 

@@ -1,4 +1,3 @@
-import numpy as np
 from core.mutation import mutation_heuristic_routing
 
 from problem.noc import random_core_mapping, \
@@ -20,7 +19,7 @@ def initialize_random_route(n_solutions, core_graph, n_rows, n_cols, mapping_seq
             n_cols,
             direction=True
         )
-        for _ in range(np.random.choice(4)):
+        for _ in range(len(routes)):
             routes = mutation_heuristic_routing(
                 parent=routes,
                 core_graph=core_graph,

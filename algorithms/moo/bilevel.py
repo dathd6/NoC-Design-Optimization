@@ -103,6 +103,7 @@ class Bilevel(BaseOptimiser):
 
             f1 = calc_energy_consumption_with_static_mapping_sequence(
                 routing_paths=population,
+                core_graph=self.core_graph,
                 es_bit=self.es_bit,
                 el_bit=self.el_bit,
             ).reshape(-1, 1)
@@ -118,7 +119,8 @@ class Bilevel(BaseOptimiser):
 
             self.pareto_fronts = non_dominated_sorting(self.f)
             self.crowding_distance = calc_crowding_distance(fitnesses=self.f, pareto_fronts=self.pareto_fronts)
-            elitism_replacement(self.population, self.f, self.pareto_fronts, self.size_p, self.crowding_distance)
+            indices = elitism_replacement(self.pareto_fronts, self.size_p, self.crowding_distance)
+            self.slice_population(indices)
 
             opt_time += (time() - start_time)
             print(f'\r\tNSGA-II Iteration: {self.n_iters + 1} - Time: {opt_time}s', end='')
@@ -128,6 +130,6 @@ class Bilevel(BaseOptimiser):
         self.crowding_distance = calc_crowding_distance(fitnesses=self.f, pareto_fronts=self.pareto_fronts)
 
         self.record(folder_name, filename, opt_time, self.f,  get_optimal_solutions(self.pareto_fronts, self.population), n_variables=1)
-
         print('\n')
+
         return opt_time, self.f[self.pareto_fronts[0]]

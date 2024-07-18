@@ -81,5 +81,6 @@ class BayesianOptimization(BaseOptimiser):
         self.record(folder_name, filename, opt_time, self.f.reshape(-1, 1), [self.population[0]], n_variables=1)
 
         idx = np.argmin(f)
+
         print('\n')
         return opt_time, X[idx], f[idx]

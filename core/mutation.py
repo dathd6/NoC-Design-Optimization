@@ -40,13 +40,15 @@ def mutation_heuristic_routing(parent, core_graph, n_rows, n_cols, mapping_seq, 
     if np.random.rand() < rate:
         seq = get_core_mapping_dict(mapping_seq)
 
-        validate = False
-        count = 0
 
         route_idx = np.random.randint(len(child))
         route = child[route_idx]
         src, des, _ = core_graph[route_idx]
         new_route = []
+
+        validate = False
+        count = 0
+
         while not validate or count > 9:
             route_idx = np.random.randint(len(child))
             route = child[route_idx]
@@ -55,12 +57,12 @@ def mutation_heuristic_routing(parent, core_graph, n_rows, n_cols, mapping_seq, 
             r1_x, r1_y = router_index_to_coordinates(seq[src], n_cols)
             r2_x, r2_y = router_index_to_coordinates(seq[des], n_cols)
             
-            if int(np.abs(r1_x - r2_x) + np.abs(r1_y - r2_y)) + 6 >= len(route):
+            if int(np.abs(r1_x - r2_x) + np.abs(r1_y - r2_y)) + 20 >= len(route):
                 validate = True
 
         if not validate:
             return child
-        
+
         # Get the direction of x and y when finding the shortest route from router 1 to router 2
         point = seq[src]
         feasible_step = [(1, 0), (-1, 0), (0, 1), (0, -1)] 
@@ -71,25 +73,28 @@ def mutation_heuristic_routing(parent, core_graph, n_rows, n_cols, mapping_seq, 
             point += route[i]
 
         x, y = router_index_to_coordinates(point, n_cols)
-        if x > 0 and y > 0 and x < n_rows - 1 and y < n_cols - 1:
-            if gene > 0:
-                prev_step = 0
+        if gene > 0:
+            prev_step = 0
+        else:
+            prev_step = route[gene - 1]
+        mutation_step = route[gene]
+        new_step = route[gene]
+
+        if not ((x == 0 and y == 0) or (x == n_rows - 1 and y == n_cols - 1) or (x == n_rows - 1 and y == 0) or (x == 0 and y == n_cols)):
+            return child
+
+        while prev_step == -new_step or mutation_step == new_step:
+            idx = np.random.choice(len(feasible_step))
+            chosen = feasible_step[idx]
+            new_x = x + chosen[0]
+            new_y = y + chosen[1]
+            if new_x < 0 or new_x >= n_rows or new_y >= n_cols or new_y < 0:
+                continue
             else:
-                prev_step = route[gene - 1]
-            mutation_step = route[gene]
-            new_step = route[gene]
-            while prev_step == -new_step or mutation_step == new_step:
-                idx = np.random.choice(len(feasible_step))
-                chosen = feasible_step[idx]
-                new_x = x + chosen[0]
-                new_y = y + chosen[1]
-                if new_x < 0 or new_x >= n_rows or new_y >= n_cols or new_y < 0:
-                    continue
-                else:
-                    new_step =  chosen[0] * n_cols + chosen[1]
-            
-            new_route.append(new_step)
-            point += new_step
+                new_step =  chosen[0] * n_cols + chosen[1]
+        
+        new_route.append(new_step)
+        point += new_step
         
         # get x, y coordinate of each router in 2d mesh
         r1_x, r1_y = router_index_to_coordinates(point, n_cols)

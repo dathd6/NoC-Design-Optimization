@@ -1,14 +1,15 @@
 import os
-from networkx import is_empty
 import numpy as np
-import matplotlib.pyplot as plt
 from pymoo.indicators.hv import HV
-import seaborn as sns
 
 from argparse import ArgumentParser
+from core.sorting import non_dominated_sorting
 
-from constants import ANALYSIS_DIR, EXPERIMENTS_DIR, FIGSIZE, NUMBER_OF_OBJECTIVES, OPTIMISERS
-from utils import count_dir, non_dominated_sorting, visualize_objective_space
+from util.utils import count_files
+from util.visualization import visualize_objective_space, visualise_convergence_plot
+
+ANALYSIS_DIR = 'output/analysis/'
+EXPERIMENTS_DIR = 'output/experiments/'
 
 if __name__ == "__main__":
     # Setup input option
@@ -26,219 +27,82 @@ if __name__ == "__main__":
     if not os.path.exists(ROOT_DIR):
         os.mkdir(ROOT_DIR)
 
-    RECORDED_DIR = os.path.join(EXPERIMENTS_DIR, testcase_name)
-    n_experiments = count_dir(RECORDED_DIR)
+    RECORD_DIR = os.path.join(EXPERIMENTS_DIR, testcase_name)
+    n_experiments = count_files(RECORD_DIR)
     
-    final_population = {}
-    nsga_ii = []
-    bilevel_upper_bo_nsga_ii = []
-    bilevel_lower_bo_nsga_ii = []
-    bilevel_lower_bo = []
-    bilevel_upper_bo = []
-    bilevel_lower_ga = []
-    bilevel_upper_ga = []
+    fitness = {
+        'nsga_ii': [],
+        'bilevel_lower': [],
+    }
 
-    for opt in ['upper_level_BO_fitness', 'lower_level_BO']:
+    for opt_name in fitness.keys():
         for i in range(n_experiments):
-            EXPERIMENT_DIR = os.path.join(RECORDED_DIR, f'experiment_{i}')
+            EXPERIMENT_DIR = os.path.join(os.path.join(RECORD_DIR, f'experiment_{i}'), 'fitness')
             items = os.listdir(EXPERIMENT_DIR)
-            n_files = count_dir(EXPERIMENT_DIR, opt)
+            n_iters = count_files(EXPERIMENT_DIR, opt_name) 
             f_exp = []
-            for j in range(n_files):
-                data_iter = np.loadtxt(os.path.join(EXPERIMENT_DIR, f'{opt}_fitness_{j}.txt'))
+            for j in range(n_iters):
+                data_iter = np.loadtxt(os.path.join(EXPERIMENT_DIR, f'{opt_name}_{j}.txt'))
                 f_exp.append(data_iter)
-            if opt == 'NSGA-II':
-                nsga_ii.append(f_exp)
-            if opt == 'Bi-level':
-                bilevel.append(f_exp)
+            fitness[opt_name].append(f_exp)
 
-    # Visualize the objective space
-    plt.figure(figsize=(8, 8))
-    optimal_nsga_ii = np.array([])
-    for f_exp in nsga_ii:
-        if len(optimal_nsga_ii) == 0:
-            optimal_nsga_ii = f_exp[-1]
-        optimal_nsga_ii = np.append(optimal_nsga_ii, f_exp[-1], axis=0)
-    pareto_fronts = non_dominated_sorting(optimal_nsga_ii)
-    front = pareto_fronts[0]
-    non_dominated = optimal_nsga_ii[front]
-
-    dominated = np.array([])
-    for i in range(1, len(pareto_fronts)):
-        if len(dominated) == 0:
-            dominated = optimal_nsga_ii[pareto_fronts[i]]
-        dominated = np.append(dominated, optimal_nsga_ii[pareto_fronts[i]], axis=0)
-    dominated = np.array(dominated)
-    if dominated.size != 0:
-        plt.scatter(
-            x=dominated[:, 0],
-            y=dominated[:, 1],
-            label=f'NSGA-II dominated solution',
-        )
-    plt.scatter(
-        x=non_dominated[:, 0],
-        y=non_dominated[:, 1],
-        label=f'NSGA-II non-dominated solution',
-    )
-    
-    optimal_bilevel = np.array([f_exp[-1][0] for f_exp in bilevel])
-    plt.scatter(
-        x=optimal_bilevel[:, 0],
-        y=optimal_bilevel[:, 1],
-        label=f'Bi-level optimal solution',
-    )
-
-    plt.title('Objective space')
-    plt.xlabel('Energy Consumption')
-    plt.ylabel('Average Load Degree')
-    plt.legend()
-    plt.savefig(os.path.join(ROOT_DIR, f'objective_space'))
-    plt.close()
-
-    # Box plot
-    ec_nsga_ii = np.array([])
-    ec_bilevel = np.array([])
-    ld_nsga_ii = np.array([])
-    ld_bilevel = np.array([])
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6))
-    for exp in nsga_ii:
-        for fitness in exp:
-            ec_nsga_ii = np.append(ec_nsga_ii, fitness[:, 0])
-            ld_nsga_ii = np.append(ld_nsga_ii, fitness[:, 1])
-
-    for exp in bilevel:
-        for fitness in exp:
-            ec_bilevel = np.append(ec_bilevel, fitness[:, 0])
-            ld_bilevel = np.append(ld_bilevel, fitness[:, 1])
-    ax1.boxplot([ec_nsga_ii, ec_bilevel], patch_artist=True)
-    ax1.set_title('Energy Consumption')
-    ax1.set_ylabel('Value')
-    ax1.set_xticklabels(['NSGA-II', 'Bi-level'])
-
-    ax2.boxplot([ld_nsga_ii, ld_bilevel], patch_artist=True)
-    ax2.set_title('Average Load Degree')
-    ax2.set_ylabel('Value')
-    ax2.set_xticklabels(['NSGA-II', 'Bi-level'])
-    plt.savefig(os.path.join(ROOT_DIR, f'box_plot'))
-    plt.close()
-
-    # Convergence plot NSGA-II
-    list_pareto_optimal = []
-    optimal_nsga_ii = np.array([])
-
-    # Get nadir
+    # Get Nadir
     nadir = [0, 0]
-    for f_exp in nsga_ii:
-        for i in range(NUMBER_OF_OBJECTIVES):
-            nadir[i] = max(nadir[i], np.array(f_exp[0])[:, i].max())
+    for opt_name in fitness.keys():
+        for f_exp in fitness[opt_name]:
+            for i in range(2):
+                nadir[i] = max(nadir[i], np.array(f_exp[0])[:, i].max())
     ind = HV(ref_point=np.array(nadir) + 0.5)
-    
-    n_iters = len(nsga_ii[0])
-    hpl_iters = [[] for _ in range(n_iters)]
-    for f_exp in nsga_ii:
-        for i, f in enumerate(f_exp):
-            front = non_dominated_sorting(f)[0]
-            hpl_iters[i].append(ind(np.array(f[front])))
 
-    lower_bound = []
-    upper_bound = []
-    median = []
-    hpl_iters = np.array(hpl_iters)
-    for i in range(n_iters):
-        lower_bound.append(hpl_iters[i, :].min())
-        upper_bound.append(hpl_iters[i, :].max())
-        median.append(np.median(hpl_iters[i, :]))
+    print('1. NSGA-II: Visualize the objective space')
 
-    sns.lineplot(
-        x=range(n_iters),
-        y=lower_bound,
-        c='red',
-        linestyle='--'
-    )
-    sns.lineplot(
-        x=range(n_iters),
-        y=upper_bound,
-        c='red',
-        linestyle='--'
-    )
-    sns.lineplot(
-        x=range(n_iters),
-        y=median,
-        label='Median'
+    f = np.array([])
+    for f_exp in fitness['nsga_ii']:
+        if len(f) == 0:
+            f = f_exp[-1]
+        f = np.concatenate((f, f_exp[-1]), axis=0)
+    PFs = non_dominated_sorting(f)
+
+    visualize_objective_space(
+        filename=os.path.join(ROOT_DIR, 'nsga_ii_objective_space'),
+        PFs=PFs,
+        f=f,
+        title='NSGA-II objective space',
+        figsize=(8, 8),
     )
 
-    plt.title('NSGA-II hypervolume convergence plot')
-    plt.xlabel('Iterations')
-    plt.ylabel('Hypervolume')
-    plt.legend()
-    plt.savefig(os.path.join(ROOT_DIR, f'Convergence_NSGA_II'))
-    plt.close()
+    # visualise_convergence_plot(
+    #     filename=os.path.join(ROOT_DIR, 'nsga_ii_convergence_plot'),
+    #     f=fitness['nsga_ii'],
+    #     indicator=ind,
+    #     title='NSGA-II Convergence Plot',
+    #     figsize=(10, 8)
+    # )
 
-    # Convergence for Bi-level
-    bilevel = np.array(bilevel)
-    n_iters = int(len(bilevel[0]))
-    ec_iters = [[] for _ in range(n_iters)]
-    ld_iters = [[] for _ in range(n_iters)]
-    for f_exp in bilevel:
-        for i, f in enumerate(f_exp):
-            ec_iters[i] = ec_iters[i] + list(f[:, 0])
-            ld_iters[i] = ld_iters[i] + list(f[:, 1])
+    print('2. Bilevel BO & NSGA-II: visualize the objective space')
 
-    for i in range(n_iters):
-        ec_iters[i] = [np.min(ec_iters[i]), np.median(ec_iters[i]), np.max(ec_iters[i])]
-        ld_iters[i] = [np.min(ld_iters[i]), np.median(ld_iters[i]), np.max(ld_iters[i])]
-    ec_iters = np.array(ec_iters)
-    ld_iters = np.array(ld_iters)
+    f = np.array([])
+    for f_exp in fitness['bilevel_lower']:
+        if len(f) == 0:
+            f = f_exp[-1]
+        f = np.concatenate((f, f_exp[-1]), axis=0)
+    PFs = non_dominated_sorting(f)
 
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6))
-    iter_split = int(n_iters / 2)
-    sns.lineplot(
-        x=range(n_iters),
-        y=ec_iters[:, 0],
-        c='red',
-        linestyle='--',
-        ax=ax1
-    )
-    sns.lineplot(
-        x=range(n_iters),
-        y=ec_iters[:, 2],
-        c='red',
-        linestyle='--',
-        ax=ax1
-    )
-    sns.lineplot(
-        x=range(n_iters),
-        y=ec_iters[:, 1],
-        label='median',
-        ax=ax1
+    visualize_objective_space(
+        filename=os.path.join(ROOT_DIR, 'bilevel_lower'),
+        PFs=PFs,
+        f=f,
+        title='Bilevel BO & NSGA-II objective space',
+        figsize=(8, 8),
     )
 
-    sns.lineplot(
-        x=range(iter_split + 1),
-        y=ld_iters[iter_split:, 0],
-        c='red',
-        linestyle='--',
-        ax=ax2
+    visualise_convergence_plot(
+        filename=os.path.join(ROOT_DIR, 'convergence_plot'),
+        fitnesses=[fitness['bilevel_lower'], fitness['nsga_ii']],
+        colors=['#7676A1', '#80A176'],
+        labels=['Bilevel', 'NSGA-II'],
+        # markers=['b-*', 'b-^'],
+        indicator=ind,
+        title='Convergence Plot',
+        figsize=(10, 8)
     )
-    sns.lineplot(
-        x=range(iter_split + 1),
-        y=ld_iters[iter_split:, 2],
-        c='red',
-        linestyle='--',
-        ax=ax2
-    )
-    sns.lineplot(
-        x=range(iter_split + 1),
-        y=ld_iters[iter_split:, 1],
-        label='median',
-        ax=ax2
-    )
-
-    plt.title('Bilevel convergence plot')
-    ax1.set_xlabel('Iterations')
-    ax2.set_xlabel('Iterations')
-    ax1.set_ylabel('Energy Consumption')
-    ax2.set_ylabel('Average Load Degree')
-    plt.legend()
-    plt.savefig(os.path.join(ROOT_DIR, f'Convergence_Bilevel'))
-    plt.close()

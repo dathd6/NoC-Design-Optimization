@@ -1,6 +1,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from pymoo.indicators.hv import HV
 import seaborn as sns
+
+from core.sorting import non_dominated_sorting
 
 def calc_performance_metric(self):
     """Calculate hypervolume to the reference point"""
@@ -10,48 +13,82 @@ def calc_performance_metric(self):
         [self.n_iters, self.ind(solutions)]
     )
 
-def visualise_perf(filename, optimisers, labels):
-    for i, opt in enumerate(optimisers):
-        perf_metrics = np.array(opt.perf_metrics)
-        sns.lineplot(
-            x=perf_metrics[:, 0],
-            y=perf_metrics[:, 1],
-            label=labels[i],
+def visualise_convergence_plot(filename, fitnesses, colors, labels, indicator, title, figsize):
+    plt.figure(figsize=figsize)
+    for k, f in enumerate(fitnesses):
+        n_iters = len(f[0])
+        hpl_iters = [[] for _ in range(n_iters)]
+
+        for f_exp in f:
+            for i, fitness in enumerate(f_exp):
+                front = non_dominated_sorting(fitness)[0]
+                hpl_iters[i].append(indicator(np.array(fitness[front])))
+        
+        lower_bound = []
+        upper_bound = []
+        median = []
+        hpl_iters = np.array(hpl_iters)
+        for i in range(n_iters):
+            lower_bound.append(hpl_iters[i, :].min())
+            upper_bound.append(hpl_iters[i, :].max())
+            median.append(np.median(hpl_iters[i, :]))
+        
+        plt.plot(
+            range(n_iters),
+            lower_bound,
+            color=colors[k],
+            alpha=.5,
         )
-    plt.xlabel('No. evaluations')
+        plt.plot(
+            range(n_iters),
+            upper_bound,
+            color=colors[k],
+            alpha=.5,
+        )
+        plt.plot(
+            range(n_iters),
+            median,
+            # markers[k],
+            label=labels[k],
+            c=colors[k],
+        )
+        plt.fill_between(range(n_iters), lower_bound, upper_bound, color=colors[k], alpha=0.3)
+        
+    plt.xlabel('Iterations')
     plt.ylabel('Hypervolume')
-    plt.title('HV convergence')
+    plt.title(title)
+    plt.legend()
     plt.savefig(filename)
     plt.close()
 
 
-def visualize_objective_space(filename, list_pareto_fronts, fitnesses, title, figsize, labels, alpha=1):
-    for opt, pareto_fronts in list_pareto_fronts.items():
-        front = pareto_fronts[0]
-        non_dominated = np.array([
-            solution for solution in fitnesses[opt][front]
-        ])
-        dominated = []
-        for i in range(1, len(pareto_fronts)):
-            dominated = dominated + [solution for solution in fitnesses[opt][pareto_fronts[i]]]
-        dominated = np.array(dominated)
-        if dominated.size != 0:
-            sns.scatterplot(
-                x=dominated[:, 0],
-                y=dominated[:, 1],
-                label=f'{opt} dominated',
-                alpha=alpha
-            )
-        sns.scatterplot(
-            x=non_dominated[:, 0],
-            y=non_dominated[:, 1],
-            label=f'{opt} non-dominated',
-        )
+def visualize_objective_space(filename, PFs, f, title, figsize):
     plt.figure(figsize=figsize)
+
+    front = PFs[0]
+    non_dominated = f[front]
+    dominated = np.array([])
+
+    for i in range(1, len(PFs)):
+        if len(dominated) == 0:
+            dominated = f[PFs[i]]
+        dominated = np.append(dominated, f[PFs[i]], axis=0)
+    dominated = np.array(dominated)
+    if dominated.size != 0:
+        plt.scatter(
+            x=dominated[:, 0],
+            y=dominated[:, 1],
+            label=f'dominated solution',
+        )
+    plt.scatter(
+        x=non_dominated[:, 0],
+        y=non_dominated[:, 1],
+        label=f'non-dominated solution',
+    )
+    
     plt.title(title)
-    plt.xlabel(labels[0])
-    plt.ylabel(labels[1])
+    plt.xlabel('Energy Consumption')
+    plt.ylabel('Load Balance')
+    plt.legend()
     plt.savefig(filename)
-
-
-
+    plt.close()

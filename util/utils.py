@@ -24,16 +24,19 @@ def get_latest_test_case(directory_path):
     except Exception:
         return 0
 
-def count_dir(directory, optimiser=None):
+def count_files(directory, keyword=None, exclude=None):
     # List all items in the given directory
     items = os.listdir(directory)
     folder_count = 0
     for item in items:
-        if optimiser and optimiser in item:
+        if exclude and exclude in item:
+            continue
+
+        if keyword and keyword in item:
             # Count only directories
             folder_count = folder_count + 1
 
-        if not optimiser:
+        if not keyword:
             folder_count = folder_count + 1
 
     return folder_count
