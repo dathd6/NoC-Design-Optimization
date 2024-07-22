@@ -25,10 +25,10 @@ class BaseOptimiser:
         self.population = p
         self.f = self.f[indices]
 
-    def record(self, folder_name, filename, opt_time, f, population, n_variables):
-        record_fitnesses(folder_name, filename, self.n_iters, f)
-        record_time(folder_name, filename, opt_time, self.n_iters)
-        record_population(folder_name, filename, population, iteration=self.n_iters, n_variables=n_variables)
+    def record(self, folder_name, opt_time, f, population, n_variables):
+        record_fitnesses(folder_name, self.n_iters, f)
+        record_time(folder_name, opt_time, self.n_iters)
+        record_population(folder_name, population, iteration=self.n_iters, n_variables=n_variables)
             
     def optimize(self):
         pass

@@ -41,42 +41,42 @@ def count_files(directory, keyword=None, exclude=None):
 
     return folder_count
 
-def record_time(record_folder, filename, time, iteration):
+def record_time(record_folder, time, iteration):
     folder = os.path.join(record_folder, 'time')
     if not os.path.exists(folder):
         os.mkdir(folder)
     avg_time = 0 if iteration == 0 else time / iteration
-    with open(f'{folder}/{filename}_{iteration}.txt', 'w') as f:
+    with open(f'{folder}/time_{iteration}.txt', 'w') as f:
         writer = csv.writer(f, delimiter=' ')
         writer.writerow(f'{time}s - {avg_time}s')
 
-def record_fitnesses(record_folder, filename, iteration, fitnesses):
+def record_fitnesses(record_folder, iteration, fitnesses):
     folder = os.path.join(record_folder, 'fitness')
     if not os.path.exists(folder):
         os.mkdir(folder)
-    with open(f'{folder}/{filename}_{iteration}.txt', 'w') as f:
+    with open(f'{folder}/fitness_{iteration}.txt', 'w') as f:
         writer = csv.writer(f, delimiter=' ')
         for fitness in fitnesses:
             writer.writerow(fitness)
 
-def record_population(record_folder, filename, population, iteration, n_variables=1):
+def record_population(record_folder, population, iteration, n_variables=1):
     folder = os.path.join(record_folder, 'population')
     if not os.path.exists(folder):
         os.mkdir(folder)
 
     if n_variables == 1:
-        with open(f'{folder}/{filename}_{iteration}.txt', 'w') as f:
+        with open(f'{folder}/population_{iteration}.txt', 'w') as f:
             writer = csv.writer(f, delimiter=' ')
             for solution in population:
                 writer.writerow(solution)
 
     if n_variables == 2:
-        with open(f'{folder}/{filename}_mapping_{iteration}.txt', 'w') as f:
+        with open(f'{folder}/population_mapping_{iteration}.txt', 'w') as f:
             writer = csv.writer(f, delimiter=' ')
             for solution in population:
                 writer.writerow(solution[0])
 
-        with open(f'{folder}/{filename}_route_{iteration}.txt', 'w') as f:
+        with open(f'{folder}/population_route_{iteration}.txt', 'w') as f:
             writer = csv.writer(f, delimiter=' ')
             for solution in population:
                 writer.writerows(solution[1])

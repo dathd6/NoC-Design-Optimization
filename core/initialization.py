@@ -1,3 +1,4 @@
+import numpy as np
 from core.mutation import mutation_heuristic_routing
 
 from problem.noc import random_core_mapping, \
@@ -8,6 +9,7 @@ def initialize_random_mapping_sequences(n_solutions, n_cores, n_rows, n_cols):
     for _ in range(n_solutions):
         mapping_seq = random_core_mapping(n_cores, n_rows, n_cols)
         mapping_seqs.append(mapping_seq)
+    mapping_seqs = np.array(mapping_seqs)
     return mapping_seqs
 
 def initialize_random_route(n_solutions, core_graph, n_rows, n_cols, mapping_seq):
@@ -16,10 +18,9 @@ def initialize_random_route(n_solutions, core_graph, n_rows, n_cols, mapping_seq
         routes = random_shortest_routing(
             core_graph,
             mapping_seq,
-            n_cols,
-            direction=True
+            n_cols
         )
-        for _ in range(len(routes)):
+        for _ in range(np.random.choice(len(routes))):
             routes = mutation_heuristic_routing(
                 parent=routes,
                 core_graph=core_graph,
@@ -27,9 +28,7 @@ def initialize_random_route(n_solutions, core_graph, n_rows, n_cols, mapping_seq
                 n_cols=n_cols,
                 mapping_seq=mapping_seq,
                 rate=1)
-
         route_paths.append(routes)
-
     return route_paths
 
 def initialize_random_shortest_route(mapping_seqs, core_graph, n_cols):

@@ -17,7 +17,7 @@ class Bilevel(BaseOptimiser):
     def __init__(self, mesh_2d_shape, n_cores, es_bit, el_bit, core_graph, population=[], fitnesses=np.array([])):
         super().__init__(mesh_2d_shape, n_cores, es_bit, el_bit, core_graph, population, fitnesses)
 
-    def optimize_upper_level_BO(self, filename, folder_name, n_iterations=100):
+    def optimize_upper_level_BO(self, filename, folder_name, n_samples, n_iterations=100):
         bo = BayesianOptimization(
             mesh_2d_shape=(self.n_rows, self.n_cols),
             n_cores=self.n_cores,
@@ -28,9 +28,9 @@ class Bilevel(BaseOptimiser):
             fitnesses=self.f
         )
 
-        return bo.optimize(filename, folder_name, n_iterations)
+        return bo.optimize(filename, folder_name, n_iterations, n_samples)
 
-    def optimize_upper_level_GA(self, filename, folder_name, tournament_size, n_iterations=100):
+    def optimize_upper_level_GA(self, folder_name, tournament_size, n_iterations=100):
         ga = GeneticAlgorithm(
             mesh_2d_shape=(self.n_rows, self.n_cols),
             n_cores=self.n_cores,
@@ -43,7 +43,6 @@ class Bilevel(BaseOptimiser):
 
         return ga.optimize(
             folder_name,
-            filename,
             n_iterations,
             tournament_size,
             crossover=partially_mapped_crossover,
@@ -73,7 +72,7 @@ class Bilevel(BaseOptimiser):
             mapping_seq=mapping_seq
         )
 
-    def optimize_lower_level_moo(self, filename, folder_name, mapping_seq, tournament_size, n_iterations=100):
+    def optimize_lower_level_moo(self, folder_name, mapping_seq, tournament_size, n_iterations=100):
         opt_time = 0
 
         while self.n_iters < n_iterations:
@@ -83,7 +82,7 @@ class Bilevel(BaseOptimiser):
                 fitnesses=self.f,
                 pareto_fronts=self.pareto_fronts
             )
-            self.record(folder_name, filename, opt_time, self.f,  get_optimal_solutions(self.pareto_fronts, self.population), n_variables=1)
+            self.record(folder_name, opt_time, self.f,  get_optimal_solutions(self.pareto_fronts, self.population), n_variables=1)
             population = []
             while len(self.population) + len(population) < 2 * self.size_p:
                 parent_a, parent_b = tournament_selection_moo(
@@ -129,7 +128,7 @@ class Bilevel(BaseOptimiser):
         self.pareto_fronts = non_dominated_sorting(self.f)
         self.crowding_distance = calc_crowding_distance(fitnesses=self.f, pareto_fronts=self.pareto_fronts)
 
-        self.record(folder_name, filename, opt_time, self.f,  get_optimal_solutions(self.pareto_fronts, self.population), n_variables=1)
+        self.record(folder_name, opt_time, self.f,  get_optimal_solutions(self.pareto_fronts, self.population), n_variables=1)
         print('\n')
 
         return opt_time, self.f[self.pareto_fronts[0]]

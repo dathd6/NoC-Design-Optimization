@@ -3,22 +3,29 @@ from time import time
 
 from algorithms.base import BaseOptimiser
 from core.selection import tournament_selection
-from core.sorting import single_objective_sorting
 from problem.noc import calc_energy_consumption, calc_load_balance
 
 class GeneticAlgorithm(BaseOptimiser):
     def __init__(self, mesh_2d_shape, n_cores, es_bit, el_bit, core_graph, population=[], fitnesses=np.array([])):
         super().__init__(mesh_2d_shape, n_cores, es_bit, el_bit, core_graph, population, fitnesses)
 
-    def optimize(self, folder_name, filename, n_iterations, tournament_size, crossover, mutation, objective, mapping_seq=None):
+    def optimize(self, folder_name, n_iterations, tournament_size, crossover, mutation, objective, mapping_seq=None):
         opt_time = 0
 
         while self.n_iters < n_iterations:
             start_time = time()
             population = []
 
-            single_objective_sorting(self.f, self.population)
-            self.record(folder_name, filename, opt_time, self.f.reshape(-1, 1), [self.population[0]], n_variables=1)
+            indices = self.f.argsort()
+            self.f = self.f[indices]
+            p = []
+            for i in indices:
+                if len(p) == self.size_p:
+                    break
+                p.append(self.population[i])
+            self.population = p
+
+            self.record(folder_name, opt_time, self.f.reshape(-1, 1), [self.population[0]], n_variables=1)
 
             while len(self.population) + len(population) < 2 * self.size_p:
                 parent_a, parent_b = tournament_selection(self.population, size_t=tournament_size)
@@ -26,7 +33,7 @@ class GeneticAlgorithm(BaseOptimiser):
                 population.append(mutation(child_c))
                 population.append(mutation(child_d))
 
-            self.population = self.population + population
+            self.population = list(self.population) + population
             self.f = np.append(
                 self.f, 
                 calc_energy_consumption(
@@ -45,20 +52,15 @@ class GeneticAlgorithm(BaseOptimiser):
                 )
             )
 
-            single_objective_sorting(self.f, self.population)
-            # Elitism replacement
-            p = []
-            for i in range(self.size_p): 
-                p.append(self.population[i])
-            self.population = p
-            self.f = self.f[:self.size_p]
+            indices = self.f.argsort()
+            self.slice_population(indices[:self.size_p])
 
             # Save execution time
             opt_time += (time() - start_time)
             print(f'\r\tGenetic Algorithm Iteration: {self.n_iters + 1} - Time: {opt_time}s', end='')
             self.n_iters += 1
 
-        self.record(folder_name, filename, opt_time, self.f.reshape(-1, 1), [self.population[0]], n_variables=1)
+        self.record(folder_name, opt_time, self.f.reshape(-1, 1), [self.population[0]], n_variables=1)
 
         print('\n')
 

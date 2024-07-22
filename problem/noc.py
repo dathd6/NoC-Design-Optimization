@@ -1,4 +1,3 @@
-# Import libraries and dependencies
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
@@ -127,7 +126,7 @@ def calc_load_balance_with_static_mapping_sequence(n_cols, n_rows, route_paths, 
 
         load_degree = []
         for bw in bw_throughput:
-            load_degree.append(bw)
+            load_degree.append(bw / total_bw)
 
         avg_load_degree = 0
         # Search all router that has task count
@@ -136,14 +135,14 @@ def calc_load_balance_with_static_mapping_sequence(n_cols, n_rows, route_paths, 
         for i in range(n_routers):
             if (task_count[i] == 0):
                 continue
-            avg_load_degree = avg_load_degree + load_degree[i]
+            avg_load_degree = avg_load_degree + load_degree[i] / task_count[i]
         avg_load_degree = avg_load_degree / n_routers
 
         lb = 0
         for i in range(n_routers):
-            lb = lb + (load_degree[i] - avg_load_degree) ** 2
+            lb = lb + np.abs(load_degree[i] - avg_load_degree)
 
-        load_balance[k] = np.sqrt(lb / n_routers) / avg_load_degree
+        load_balance[k] = lb
 
     return load_balance
 
@@ -182,28 +181,30 @@ def calc_load_balance(n_cols, n_rows, route_paths, mapping_seqs, core_graph):
             bw_throughput = bw_throughput + tc * bw
             task_count = task_count + tc
             
-        # Calculate the total bandwidth
-        total_bw = 0
-        for _, _, bw in core_graph:
-            total_bw += bw
+        # # Calculate the total bandwidth
+        # total_bw = 0
+        # for _, _, bw in core_graph:
+        #     total_bw += bw
 
-        load_degree = []
-        for bw in bw_throughput:
-            load_degree.append(bw)
+        # load_degree = []
+        # for bw in bw_throughput:
+        #     load_degree.append(bw / total_bw)
 
-        avg_load_degree = 0
-        # Search all router that has task count
-        # and calculate the load degree at that router
-        # --> calculate the total load degree --> average load degree
-        for i in range(n_routers):
-            avg_load_degree = avg_load_degree + load_degree[i]
-        avg_load_degree = avg_load_degree / n_routers
+        # avg_load_degree = 0
+        # # Search all router that has task count
+        # # and calculate the load degree at that router
+        # # --> calculate the total load degree --> average load degree
+        # for i in range(n_routers):
+        #     if (task_count[i] == 0):
+        #         continue
+        #     avg_load_degree = avg_load_degree + load_degree[i] / task_count[i]
+        # avg_load_degree = avg_load_degree / n_routers
 
-        lb = 0
-        for i in range(n_routers):
-            lb = lb + (load_degree[i] - avg_load_degree) ** 2
+        # lb = 0
+        # for i in range(n_routers):
+        #     lb = lb + np.abs(load_degree[i] - avg_load_degree)
 
-        load_balance[k] = np.sqrt(lb / n_routers) / avg_load_degree
+        load_balance[k] = np.mean(bw_throughput) / np.std(bw_throughput)
 
     return load_balance
 

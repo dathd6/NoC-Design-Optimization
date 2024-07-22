@@ -44,13 +44,3 @@ def non_dominated_sorting(fitnesses):
                 dominated_counts[dominated_by_current] -= 1
 
     return pareto_fronts
-
-def single_objective_sorting(fitnesses, population):
-    sorted_population = []
-    sorted_indices = np.argsort(fitnesses)
-    for i in sorted_indices:
-        sorted_population.append(population[i])
-    fitnesses = fitnesses[sorted_indices]
-    population = sorted_population
-    return population
-

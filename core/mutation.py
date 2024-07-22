@@ -49,19 +49,19 @@ def mutation_heuristic_routing(parent, core_graph, n_rows, n_cols, mapping_seq, 
         validate = False
         count = 0
 
-        while not validate or count > 9:
-            route_idx = np.random.randint(len(child))
-            route = child[route_idx]
-            src, des, _ = core_graph[route_idx]
-            # get x, y coordinate of each router in 2d mesh
-            r1_x, r1_y = router_index_to_coordinates(seq[src], n_cols)
-            r2_x, r2_y = router_index_to_coordinates(seq[des], n_cols)
-            
-            if int(np.abs(r1_x - r2_x) + np.abs(r1_y - r2_y)) + 20 >= len(route):
-                validate = True
+        # while not validate or count > 9:
+        #     route_idx = np.random.randint(len(child))
+        #     route = child[route_idx]
+        #     src, des, _ = core_graph[route_idx]
+        #     # get x, y coordinate of each router in 2d mesh
+        #     r1_x, r1_y = router_index_to_coordinates(seq[src], n_cols)
+        #     r2_x, r2_y = router_index_to_coordinates(seq[des], n_cols)
+        #     
+        #     if int(np.abs(r1_x - r2_x) + np.abs(r1_y - r2_y)) + 20 >= len(route):
+        #         validate = True
 
-        if not validate:
-            return child
+        # if not validate:
+        #     return child
 
         # Get the direction of x and y when finding the shortest route from router 1 to router 2
         point = seq[src]
