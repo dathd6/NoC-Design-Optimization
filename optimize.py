@@ -4,11 +4,12 @@ import numpy as np
 
 from algorithms.moo.bilevel import Bilevel
 from algorithms.moo.nsga_ii import NSGA_II
-from core.initialization import initialize_random_mapping_sequences, initialize_random_route, initialize_random_shortest_route
-from problem.noc import calc_energy_consumption, calc_load_balance, calc_energy_consumption_with_static_mapping_sequence, calc_load_balance_with_static_mapping_sequence
-from util.utils import count_files, get_file_name, \
-                       get_latest_test_case, \
-                       get_number_of_cores, record_population
+from core.initialization import initialize_random_mapping_sequences, initialize_random_shortest_route
+from problem.noc import calc_energy_consumption, calc_load_balance
+from util.utils import count_files, \
+                       get_file_name, \
+                       get_number_of_cores, \
+                       mkdir, record_population
 
 EXPERIMENT_STR = 'experiment'
 OUTPUT_DIR = 'output/'
@@ -55,7 +56,6 @@ if __name__ == "__main__":
 
     # Start experiments
     for i in range(args.experiments):
-
         print('* * * * * * * * * * * * * * * * * * * * * * * * * * * *')
         print('*  1. Initialize the population                   ')
         print(f'*    + No. Experiments:        {args.experiments}') 
@@ -110,61 +110,57 @@ if __name__ == "__main__":
         print('* * * * * * * * * * * * * * * * * * * * * * * * * * * *')
         print('* 2. Bilevel                                          *')
         print('*    - Upper Level: GA                                *')
-        print('*    - Lower Level: NSGA-II                           *')
+        print('*    - Lower Level: GA                                *')
         print('* * * * * * * * * * * * * * * * * * * * * * * * * * * *')
         print(f'Experiments no. {i + 1}\n')
 
         if args.bi_level:
-            TEST_CASE_DIR = os.path.join(EXPERIMENTS_DIR, 'bi_level_upper')
-            if not os.path.exists(TEST_CASE_DIR):
-                os.mkdir(TEST_CASE_DIR)
+            TMP_DIR = mkdir(os.path.join(EXPERIMENTS_DIR, 'bilevel_upper'))
+            TEST_CASE_DIR = mkdir(os.path.join(TMP_DIR, f'experiment_{count_files(TMP_DIR)}'))
 
-            bil_bo_nsga_ii = Bilevel(
+            TMP_DIR = mkdir(os.path.join(EXPERIMENTS_DIR, 'bilevel_lower'))
+            TEST_CASE_DIR_LOWER = mkdir(os.path.join(TMP_DIR, f'experiment_{count_files(TMP_DIR)}'))
+
+            population = []
+            for j in range(len(mapping_seqs)):
+                population.append([mapping_seqs[j].copy(), route_paths[j].copy()])
+            bil = Bilevel(
                 n_cores=n_cores,
                 es_bit=es_bit,
                 el_bit=el_bit,
                 mesh_2d_shape=(n_rows, n_cols),
                 core_graph=core_graph,
-                population=mapping_seqs.copy(),
-                fitnesses=f[:, 0].copy()
+                population=population,
+                fitnesses=f.copy()
             )
-            upper_opt_time0, upper_optimal_mapping_seq0, upper_fitness0 = bil_bo_nsga_ii.optimize_upper_level_GA(
+            bil.optimize(
                 folder_name=TEST_CASE_DIR,
+                lower_folder=TEST_CASE_DIR_LOWER,
                 tournament_size=n_tournaments,
-                n_iterations=int(n_iterations)
-            )
-            bil_bo_nsga_ii.population = initialize_random_route(
-                n_solutions=n_solutions,
-                core_graph=core_graph,
-                n_rows=n_rows,
-                n_cols=n_cols,
-                mapping_seq=upper_optimal_mapping_seq0
+                upper_iters=int(n_iterations),
+                lower_iters=int(n_iterations)
             )
 
-            f1 = calc_energy_consumption_with_static_mapping_sequence(
-                routing_paths=bil_bo_nsga_ii.population,
-                core_graph=core_graph,
-                es_bit=es_bit,
-                el_bit=el_bit,
-            ).reshape(-1, 1)
-            f2 = calc_load_balance_with_static_mapping_sequence(
-                n_rows=n_rows,
-                n_cols=n_cols,
-                mapping_seq=upper_optimal_mapping_seq0,
-                route_paths=bil_bo_nsga_ii.population,
-                core_graph=core_graph,
-            ).reshape(-1, 1)
-            bil_bo_nsga_ii.f = np.concatenate((f1, f2), axis=1)
-
-            TEST_CASE_DIR = os.path.join(EXPERIMENTS_DIR, 'bi_level_lower')
-            if not os.path.exists(TEST_CASE_DIR):
-                os.mkdir(TEST_CASE_DIR)
-            lower_opt_time0, lower_f0 = bil_bo_nsga_ii.optimize_lower_level_moo(
-                folder_name=TEST_CASE_DIR,
-                mapping_seq=upper_optimal_mapping_seq0,
-                n_iterations=n_iterations,
-                tournament_size=n_tournaments
-            )
+            # TMP_DIR = mkdir(os.path.join(EXPERIMENTS_DIR, 'bilevel_lower'))
+            # TEST_CASE_DIR = mkdir(os.path.join(TMP_DIR, f'experiment_{count_files(TMP_DIR)}'))
+            # bil_bo_nsga_ii.population = initialize_random_shortest_route(
+            #     mapping_seqs=[upper_optimal_mapping_seq0] * n_solutions,
+            #     core_graph=core_graph,
+            #     n_cols=n_cols,
+            # )
+            # bil_bo_nsga_ii.f = calc_load_balance(
+            #     n_cols=n_cols,
+            #     n_rows=n_rows,
+            #     route_paths=bil_bo_nsga_ii.population,
+            #     mapping_seqs=[upper_optimal_mapping_seq0] * n_solutions,
+            #     core_graph=core_graph
+            # )
+            # bil_bo_nsga_ii.optimize_lower_level(
+            #     folder_name=TEST_CASE_DIR,
+            #     mapping_seq=upper_optimal_mapping_seq0,
+            #     n_iterations=n_iterations,
+            #     tournament_size=n_tournaments
+            # )
 
         print('* * * * * * * *')
         print('* 3. NSGA-II  *')
@@ -172,9 +168,8 @@ if __name__ == "__main__":
         print(f'Experiments no. {i + 1}\n')
 
         if args.nsga_ii:
-            TEST_CASE_DIR = os.path.join(EXPERIMENTS_DIR, 'nsga_ii')
-            if not os.path.exists(TEST_CASE_DIR):
-                os.mkdir(TEST_CASE_DIR)
+            TMP_DIR = mkdir(os.path.join(EXPERIMENTS_DIR, 'nsga_ii'))
+            TEST_CASE_DIR = mkdir(os.path.join(TMP_DIR, f'experiment_{count_files(TMP_DIR)}'))
 
             population = []
             for j in range(len(mapping_seqs)):
@@ -190,95 +185,10 @@ if __name__ == "__main__":
                 fitnesses=f.copy()
             )
 
-            RECORD_FOLDER = os.path.join(TEST_CASE_DIR, 'nsga_ii')
-            if not os.path.exists(RECORD_FOLDER):
-                os.mkdir(RECORD_FOLDER)
             nsga_ii.optimize(
-                folder_name=RECORD_FOLDER,
+                folder_name=TEST_CASE_DIR,
                 tournament_size=n_tournaments,
                 n_iterations=n_iterations
             )
-            print(np.min(nsga_ii.f[:, 0]))
-
-        # print('* * * * * * * * * * * * * * * * * * * * * * * * * * * *')
-        # print('* 4. Bilevel                                          *')
-        # print('*    - Upper Level: Bayesian Optimisation             *')
-        # print('*    - Lower Level: Genetic Algortihm                 *')
-        # print('* * * * * * * * * * * * * * * * * * * * * * * * * * * *')
-        # print(f'Experiments no. {i + 1}\n')
-
-        # bil_bo_ga = Bilevel(
-        #     n_cores=n_cores,
-        #     es_bit=es_bit,
-        #     el_bit=el_bit,
-        #     mesh_2d_shape=(n_rows, n_cols),
-        #     core_graph=core_graph,
-        #     population=mapping_seqs.copy(),
-        #     fitnesses=f[:, 0].copy()
-        # )
-        # upper_opt_time1, upper_optimal_mapping_seq1, upper_fitness1 = bil_bo_ga.optimize_upper_level_BO(
-        #     filename='bilevel_bo_ga_upper',
-        #     folder_name=TEST_CASE_DIR,
-        #     n_iterations=int(n_iterations / 10)
-        # )
-        # optimal_mapping_seqs = np.array(n_solutions * [list(upper_optimal_mapping_seq1)])
-        # bil_bo_ga.population = initialize_random_shortest_route(
-        #     optimal_mapping_seqs,
-        #     core_graph,
-        #     n_cols
-        # )
-        # bil_bo_ga.f = calc_load_balance(
-        #     n_rows=n_rows,
-        #     n_cols=n_cols,
-        #     mapping_seqs=optimal_mapping_seqs,
-        #     route_paths=bil_bo_ga.population,
-        #     core_graph=core_graph,
-        # )
-        # lower_opt_time1, lower_optimal_route1, lower_fitness1 = bil_bo_ga.optimize_lower_level(
-        #     filename='bilevel_bo_ga_lower',
-        #     folder_name=TEST_CASE_DIR,
-        #     mapping_seq=upper_optimal_mapping_seq1,
-        #     n_iterations=n_iterations,
-        #     tournament_size=n_tournaments
-        # )
-
-        # print('* * * * * * * * * * * * * * * * * * * * * * * * * * * *')
-        # print('* 5. Bilevel                                          *')
-        # print('*    - Upper Level: Genetic Algorithm                 *')
-        # print('*    - Lower Level: Genetic Algortihm                 *')
-        # print('* * * * * * * * * * * * * * * * * * * * * * * * * * * *')
-        # print(f'Experiments no. {i + 1}\n')
-
-        # bil_ga_ga = Bilevel(
-        #     n_cores=n_cores,
-        #     es_bit=es_bit,
-        #     el_bit=el_bit,
-        #     mesh_2d_shape=(n_rows, n_cols),
-        #     core_graph=core_graph,
-        #     population=mapping_seqs.copy(),
-        #     fitnesses=f[:, 0].copy()
-        # )
-        # upper_opt_time2, upper_optimal_mapping_seq2, upper_fitness2 = bil_ga_ga.optimize_upper_level_GA(
-        #     filename='bilevel_ga_ga_upper',
-        #     folder_name=TEST_CASE_DIR,
-        #     n_iterations=n_iterations,
-        #     tournament_size=n_tournaments
-        # )
-        # optimal_mapping_seqs = np.array(n_solutions * [list(upper_optimal_mapping_seq2)])
-        # bil_ga_ga.population = initialize_random_shortest_route(optimal_mapping_seqs, core_graph, n_cols)
-        # bil_ga_ga.f = calc_load_balance(
-        #     n_rows=n_rows,
-        #     n_cols=n_cols,
-        #     mapping_seqs=optimal_mapping_seqs,
-        #     route_paths=bil_ga_ga.population,
-        #     core_graph=core_graph,
-        # )
-        # lower_opt_time2, lower_optimal_route2, lower_fitness2 = bil_ga_ga.optimize_lower_level(
-        #     filename='bilevel_ga_ga_lower',
-        #     folder_name=TEST_CASE_DIR,
-        #     mapping_seq=upper_optimal_mapping_seq2,
-        #     n_iterations=n_iterations,
-        #     tournament_size=n_tournaments
-        # )
 
         print('!!!!!!!!!!!!! END !!!!!!!!!!!!')

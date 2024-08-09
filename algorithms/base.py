@@ -18,17 +18,26 @@ class BaseOptimiser:
         self.el_bit = el_bit
         self.core_graph = core_graph
 
-    def slice_population(self, indices):
-        p = []
-        for i in indices:
-            p.append(self.population[i])
-        self.population = p
-        self.f = self.f[indices]
+    def slice_population(self, indices, population=None, f=None):
+        if population is not None and f is not None:
+            p = []
+            for i in indices:
+                p.append(population[i])
+            population = p
+            f = f[indices]
+            return population, f
+        else:
+            p = []
+            for i in indices:
+                p.append(self.population[i])
+            self.population = p
+            self.f = self.f[indices]
+            return self.population, self.f
 
-    def record(self, folder_name, opt_time, f, population, n_variables):
-        record_fitnesses(folder_name, self.n_iters, f)
-        record_time(folder_name, opt_time, self.n_iters)
-        record_population(folder_name, population, iteration=self.n_iters, n_variables=n_variables)
+    def record(self, folder_name, opt_time, f, population, n_variables, n_iters):
+        record_fitnesses(folder_name, n_iters, f)
+        record_time(folder_name, opt_time, n_iters)
+        record_population(folder_name, population, iteration=n_iters, n_variables=n_variables)
             
     def optimize(self):
         pass

@@ -17,13 +17,7 @@ class GeneticAlgorithm(BaseOptimiser):
             population = []
 
             indices = self.f.argsort()
-            self.f = self.f[indices]
-            p = []
-            for i in indices:
-                if len(p) == self.size_p:
-                    break
-                p.append(self.population[i])
-            self.population = p
+            self.slice_population(indices)
 
             self.record(folder_name, opt_time, self.f.reshape(-1, 1), [self.population[0]], n_variables=1)
 

@@ -20,7 +20,7 @@ def initialize_random_route(n_solutions, core_graph, n_rows, n_cols, mapping_seq
             mapping_seq,
             n_cols
         )
-        for _ in range(np.random.choice(len(routes))):
+        for _ in range(len(routes) * len(routes)):
             routes = mutation_heuristic_routing(
                 parent=routes,
                 core_graph=core_graph,

@@ -80,3 +80,8 @@ def record_population(record_folder, population, iteration, n_variables=1):
             writer = csv.writer(f, delimiter=' ')
             for solution in population:
                 writer.writerows(solution[1])
+
+def mkdir(folder):
+    if not os.path.exists(folder):
+        os.mkdir(folder)
+    return folder

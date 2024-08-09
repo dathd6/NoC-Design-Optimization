@@ -204,7 +204,7 @@ def calc_load_balance(n_cols, n_rows, route_paths, mapping_seqs, core_graph):
         # for i in range(n_routers):
         #     lb = lb + np.abs(load_degree[i] - avg_load_degree)
 
-        load_balance[k] = np.mean(bw_throughput) / np.std(bw_throughput)
+        load_balance[k] = np.std(bw_throughput) / np.mean(bw_throughput)
 
     return load_balance
 
@@ -278,18 +278,3 @@ def create_noc_topology(n_rows, n_cols, mapping_seq):
 
     return G, nodes
 
-
-def visualize_NoC(n_rows, n_cols, mapping_seq):
-    G, nodes = create_noc_topology(n_rows, n_cols, mapping_seq)
-    pos = {node: (loc[1], -loc[0]) for node, loc in nodes.items()}
-    labels = {node: G.nodes[node]['label'] for node in G.nodes()}
-
-    node_color = [G.nodes[node]['color'] for node in G]
-    edge_color = [G[u][v].get('color', 'gray') for u, v in G.edges()]
-    
-    # Draw the network
-    plt.figure(figsize=(8, 8))
-    nx.draw(G, pos, with_labels=True, labels=labels, node_color=node_color, node_size=2000, font_size=9, font_weight='bold', edge_color=edge_color, width=2, arrows=True)
-    plt.title("Network on Chip (NoC) Topology")
-    plt.axis('off')  # Turn off the axis
-    plt.show()

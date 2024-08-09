@@ -67,7 +67,7 @@ class NSGA_II(BaseOptimiser):
                 fitnesses=self.f,
                 pareto_fronts=self.pareto_fronts
             )
-            self.record(folder_name, opt_time, self.f, get_optimal_solutions(self.pareto_fronts, self.population), n_variables=2)
+            self.record(folder_name, opt_time, self.f, get_optimal_solutions(self.pareto_fronts, self.population), n_variables=2, n_iters=self.n_iters)
             population = []
             while len(self.population) + len(population) < 2 * self.size_p:
                 parent_a, parent_b = tournament_selection_moo(tournament_size, self.pareto_fronts, self.crowding_distance, self.population)
@@ -109,13 +109,13 @@ class NSGA_II(BaseOptimiser):
             self.slice_population(indices)
 
             opt_time += (time() - start_time)
-            print(f'\r\tNSGA-II Iteration: {self.n_iters + 1} - Time: {opt_time}')
             self.n_iters += 1
+            print(f'\r\tNSGA-II Iteration: {self.n_iters} - Time: {opt_time / self.n_iters}', end='')
 
         self.pareto_fronts = non_dominated_sorting(self.f)
         self.crowding_distance = calc_crowding_distance(fitnesses=self.f, pareto_fronts=self.pareto_fronts)
 
-        self.record(folder_name, opt_time, self.f, get_optimal_solutions(self.pareto_fronts, self.population), n_variables=2)
+        self.record(folder_name, opt_time, self.f, get_optimal_solutions(self.pareto_fronts, self.population), n_variables=2, n_iters=self.n_iters)
         print('\n')
 
         return opt_time, self.f[self.pareto_fronts[0]]
