@@ -1,6 +1,7 @@
 import csv
 import os
 import numpy as np
+import matplotlib.pyplot as plt
 from pymoo.indicators.hv import HV
 from core.sorting import non_dominated_sorting
 from argparse import ArgumentParser, BooleanOptionalAction
@@ -45,8 +46,8 @@ if __name__ == "__main__":
     
     N_ITERATIONS = 0
     # Retrieve recorded value
+    print('START RETRIEVE DATA !')
     for algo in algorithms:
-        print('START RETRIEVE DATA')
         ALGO_DIR = os.path.join(RECORD_DIR, algo)
         N_EXPERIMENTS = np.max(count_files(ALGO_DIR), N_ITERATIONS)
         f = []
@@ -69,12 +70,12 @@ if __name__ == "__main__":
                 f_exp.append(data_iter)
             f.append(f_exp)
 
-        dict_f[algo][app] = f
+        dict_f[algo] = f
 
     if args.optimal_fitness:
         print("START RECORD OPTIMAL FITNESS!!!")
         for algo in algorithms[:2]:
-            data = dict_f[algo][app]
+            data = dict_f[algo]
             ec = 0
             lb = 0
             for f_exp in data:
@@ -92,9 +93,13 @@ if __name__ == "__main__":
     if args.algorithm_animation:
         print("START ALGORITHMS ANIMATION !!!")
 
-        SAMPLE = np.random.randint(len(dict_f[BILEVEL_UPPER][app]))
-        f_bilevel = dict_f[BILEVEL_UPPER][app][SAMPLE]
-        f_nsga_ii = dict_f[NSGA_II][app][SAMPLE]
+        SAMPLE = np.random.randint(len(dict_f[BILEVEL_UPPER]))
+        f_bilevel = dict_f[BILEVEL_UPPER][SAMPLE]
+        f_nsga_ii = dict_f[NSGA_II][SAMPLE]
+
+        FRAME_DIR = os.path.join(ANALYSIS_DIR, 'frame')
+        if not os.path.exists(FRAME_DIR):
+            os.mkdir(FRAME_DIR)
 
         # Visual objective spaces for every generations
         for i in range(len(f_bilevel)):
@@ -133,10 +138,10 @@ if __name__ == "__main__":
                 ax[j].legend()
             # Adjust layout
             plt.tight_layout()
-            plt.savefig(os.path.join(ROOT_DIR, f'objective_space_{i}'))
+            plt.savefig(os.path.join(FRAME_DIR, f'objective_space_{i}'))
             plt.close()
 
-        generate_video_from_images(ANALYSIS_DIR, f'{ANALYSIS_DIR}/animation.mp4')
+        generate_video_from_images(FRAME_DIR, f'{ANALYSIS_DIR}/animation.mp4')
     
     if args.objective_space:
         fs = []
@@ -145,7 +150,7 @@ if __name__ == "__main__":
             if algo == BILEVEL_LOWER:
                 continue
             f = np.array([])
-            for f_exp in dict_f[algo][app]:
+            for f_exp in dict_f[algo]:
                 if len(f) == 0:
                     f = f_exp[-1]
                 f = np.concatenate((f, f_exp[-1]), axis=0)
@@ -165,7 +170,7 @@ if __name__ == "__main__":
     if args.convergence_plot:
         print('START VISUALIZE CONVERGENCE PLOT BI-LEVEL !!!')
         for k, algo in enumerate([BILEVEL_UPPER, BILEVEL_LOWER]):
-            f = dict_f[algo][app]
+            f = dict_f[algo]
 
             f_best = [[] for _ in range(N_ITERATIONS)]
 
@@ -191,7 +196,7 @@ if __name__ == "__main__":
     if args.convergence_plot:
         print('START VISUALIZE CONVERGENCE PLOT NSGA-II !!!')
 
-        f = dict_f['nsga_ii'][app]
+        f = dict_f[NSGA_II]
         hpl_iters = [[] for _ in range(N_ITERATIONS)]
 
         # Get Nadir

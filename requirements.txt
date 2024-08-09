@@ -1,0 +1,9 @@
+matplotlib
+networkx
+seaborn
+numpy
+pymoo
+torch
+opencv-python
+scipy
+scikit-learn

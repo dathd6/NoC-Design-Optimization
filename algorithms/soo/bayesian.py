@@ -6,17 +6,17 @@ import numpy as np
 from time import time
 from sklearn.gaussian_process.kernels import RBF, ConvergenceWarning
 from sklearn.gaussian_process import GaussianProcessRegressor
-from botorch.fit import fit_gpytorch_mll
-from gpytorch.mlls import ExactMarginalLogLikelihood
+# from botorch.fit import fit_gpytorch_mll
+# from gpytorch.mlls import ExactMarginalLogLikelihood
 from scipy.stats import norm
 from scipy.optimize import minimize
 
 from algorithms.base import BaseOptimiser
 # from core.selection import random_sampling_acquisition
 from problem.noc import calc_energy_consumption
-from botorch.optim import optimize_acqf
-from botorch.acquisition import ExpectedImprovement
-from botorch.models import SingleTaskGP
+# from botorch.optim import optimize_acqf
+# from botorch.acquisition import ExpectedImprovement
+# from botorch.models import SingleTaskGP
 
 def EI(x, gaussian_process, f_best):
     mu,sigma = gaussian_process.predict(x.reshape(-1, 1),return_std=True)
