@@ -18,9 +18,9 @@ def visualise_convergence_plot(filename, f, color, label, title, figsize, xlabel
     median = [] * N_ITERATIONS
 
     for i in range(N_ITERATIONS):
-        lower_bound.append(f[i, :].min())
-        upper_bound.append(f[i, :].max())
-        median.append(np.median(f[i, :]))
+        lower_bound.append(np.min(f[i]))
+        upper_bound.append(np.max(f[i]))
+        median.append(np.median(f[i]))
 
     plt.figure(figsize=figsize)
 
@@ -44,14 +44,35 @@ def visualise_convergence_plot(filename, f, color, label, title, figsize, xlabel
     )
     plt.fill_between(range(N_ITERATIONS), lower_bound, upper_bound, color=color, alpha=0.2)
 
-    plt.xlabel(xlabel)
-    plt.ylabel(ylabel)
-    plt.title(title)
+    # plt.xlabel(xlabel)
+    # plt.ylabel(ylabel)
+    # plt.title(title)
     plt.legend()
     plt.savefig(filename)
     plt.close()
 
-def visualize_objective_space(filename, list_PFs, fs, labels, title, figsize, is_non_dominated):
+def visualize_box_plot(filename, fs, labels, figsize): 
+    plt.figure(figsize=figsize)
+
+    data = []
+    bp_labels = []
+
+    for j in range(2):
+        for i in range(len(fs)):
+            f = fs[i]
+            norm_f = f[:, j] / f[:, j].max()
+            data.append(norm_f)
+            bp_labels.append(f'{labels[i]}\n{"energy\nconsumption" if j == 0 else "load\nbalance"} ')
+
+    plt.boxplot(
+        data,
+        labels=bp_labels,
+    )
+
+    plt.savefig(filename)
+    plt.close()
+
+def visualize_objective_space(filename, list_PFs, fs, labels, figsize, is_non_dominated):
     FIRST_INDEX = 0
     plt.figure(figsize=figsize)
 
@@ -61,6 +82,14 @@ def visualize_objective_space(filename, list_PFs, fs, labels, title, figsize, is
 
         front = PFs[FIRST_INDEX]
         non_dominated = f[front]
+
+        if i == 1:
+            plt.scatter(
+                x=f[:, 0],
+                y=f[:, 1],
+                label=f'{labels[i]} solution',
+            )
+            continue
 
         if is_non_dominated[i]:
             dominated = np.array([])
@@ -83,7 +112,6 @@ def visualize_objective_space(filename, list_PFs, fs, labels, title, figsize, is
             label=f'{labels[i]} non-dominated solution',
         )
 
-    plt.title(title)
     plt.xlabel('Energy Consumption')
     plt.ylabel('Load Balance')
     plt.legend()

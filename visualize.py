@@ -8,7 +8,7 @@ from argparse import ArgumentParser, BooleanOptionalAction
 
 from util.constants import OUTPUT, ANALYSIS, EXPERIMENTS, FITNESS, EXPERIMENT, NSGA_II, BILEVEL_UPPER, BILEVEL_LOWER
 from util.utils import count_files
-from util.visualization import generate_video_from_images, visualise_convergence_plot, visualize_objective_space
+from util.visualization import generate_video_from_images, visualise_convergence_plot, visualize_box_plot, visualize_objective_space
 
 REPORT = 'report'
 ENERGY_CONSUMPTION = 'Energy Consumption'
@@ -23,6 +23,7 @@ if __name__ == "__main__":
     parser.add_argument('--application', type=str, required=True, help='NoC Application')
     parser.add_argument('--color', type=str, default='#EA1000', help='Convergence color')
     parser.add_argument('--objective-space', action=BooleanOptionalAction, type=bool, help='Visualize Objective space')
+    parser.add_argument('--box-plot', action=BooleanOptionalAction, type=bool, help='Visualize box plot')
     parser.add_argument('--optimal-fitness', action=BooleanOptionalAction, type=bool, help='Average Optimal fitness')
     parser.add_argument('--algorithm-animation', action=BooleanOptionalAction, type=bool, help='Animation algorithm')
     parser.add_argument('--convergence-plot', action=BooleanOptionalAction, type=bool, help='Plot convergence plot')
@@ -44,12 +45,12 @@ if __name__ == "__main__":
         os.mkdir(ANALYSIS_DIR)
     RECORD_DIR = os.path.join(ROOT_DIR, EXPERIMENTS)
     
-    N_ITERATIONS = 0
+    N_ITERATIONS = 1000
     # Retrieve recorded value
     print('START RETRIEVE DATA !')
     for algo in algorithms:
         ALGO_DIR = os.path.join(RECORD_DIR, algo)
-        N_EXPERIMENTS = np.max(count_files(ALGO_DIR), N_ITERATIONS)
+        N_EXPERIMENTS = np.max(count_files(ALGO_DIR))
         f = []
 
         for i in range(N_EXPERIMENTS):
@@ -146,22 +147,43 @@ if __name__ == "__main__":
     if args.objective_space:
         fs = []
         list_PFs = []
+        bp = []
         for algo in dict_f.keys():
             if algo == BILEVEL_LOWER:
                 continue
+
             f = np.array([])
             for f_exp in dict_f[algo]:
+                new_f = None
+                if algo == BILEVEL_UPPER:
+                    new_f = f_exp[-1][:1]
+                else:
+                    new_f = f_exp[-1]
                 if len(f) == 0:
-                    f = f_exp[-1]
-                f = np.concatenate((f, f_exp[-1]), axis=0)
+                    f = new_f
+                else:
+                    f = np.concatenate((f, new_f), axis=0)
+
             fs.append(f)
             list_PFs.append(non_dominated_sorting(f))
 
+            if algo == BILEVEL_UPPER:
+                bp.append(f)
+            else:
+                PFs = non_dominated_sorting(f)
+                bp.append(f[PFs[0]])
+
+        visualize_box_plot(
+            filename=os.path.join(ANALYSIS_DIR, f'box_plot_{app}'),
+            fs=bp,
+            labels=['NSGA-II', 'Bi-level'],
+            figsize=(6, 6),
+        )
+
         visualize_objective_space(
-            filename=os.path.join(ANALYSIS_DIR, app),
+            filename=os.path.join(ANALYSIS_DIR, f'objective_space_{app}'),
             fs=fs,
             list_PFs=list_PFs,
-            title='Objective space',
             labels=['NSGA-II', 'Bi-level'],
             is_non_dominated=[True, False],
             figsize=(6, 6),
@@ -176,14 +198,17 @@ if __name__ == "__main__":
 
             # Get Nadir
             for f_exp in f:
+
                 for i in range(N_ITERATIONS):
                     if k == 0:
-                        f_best[i].append(f_exp[i][:, 0].min())
+                        max_values = f_exp[0].max(axis=0)
+                        f_best[i].append(f_exp[i][:, 0].min() / max_values[0])
                     else:
+                        max_values = f_exp[0].max()
                         f_best[i].append(f_exp[i].min())
 
             visualise_convergence_plot(
-                filename=os.path.join(ANALYSIS_DIR, f'{algo}_{app}_convergence'),
+                filename=os.path.join(ANALYSIS_DIR, f'convergence_{algo}_{app}'),
                 f=f_best,
                 color=color,
                 label=app,
@@ -193,34 +218,37 @@ if __name__ == "__main__":
                 ylabel=ENERGY_CONSUMPTION if k == 0 else LOAD_BALANCE,
             )
 
-    if args.convergence_plot:
-        print('START VISUALIZE CONVERGENCE PLOT NSGA-II !!!')
+        if args.convergence_plot:
+            print('START VISUALIZE CONVERGENCE PLOT NSGA-II !!!')
 
-        f = dict_f[NSGA_II]
-        hpl_iters = [[] for _ in range(N_ITERATIONS)]
+            f = dict_f[NSGA_II]
+            hpl_iters = [[] for _ in range(N_ITERATIONS + 1)]
 
-        # Get Nadir
-        nadir = [0, 0]
-        for f_exp in f:
-            for fi in enumerate(f_exp):
-                for i in range(2):
-                    nadir[i] = max(nadir[i], np.array(f_exp[0])[:, i].max())
+            # Get Nadir
+            nadir = [0, 0]
 
-            ind = HV(ref_point=np.array(nadir) + 1)
+            for f_exp in f:
+                m_value = f_exp[0].max(axis=0)
+                nadir[0] = max(nadir[0], m_value[0])
+                nadir[1] = 1
 
-            n_iters = len(f[0])
+            for f_exp in f:
 
-            for i, fi in enumerate(f_exp):
-                front = non_dominated_sorting(fi)[0]
-                hpl_iters[i].append(ind(np.array(fi)[front]))
+                ind = HV(ref_point=[1, 1])
 
-        visualise_convergence_plot(
-            filename=os.path.join(ANALYSIS_DIR, 'convergence_nsga_ii'),
-            f=hpl_iters,
-            color=color,
-            label=app,
-            title='NSGA-II convergence',
-            figsize=(5, 4),
-            xlabel='Iterations',
-            ylabel='Hypervolume'
-        )
+                n_iters = len(f[0])
+
+                for i, fi in enumerate(f_exp):
+                    front = non_dominated_sorting(fi)[0]
+                    hpl_iters[i].append(ind(np.array(fi)[front] / nadir))
+
+            visualise_convergence_plot(
+                filename=os.path.join(ANALYSIS_DIR, f'convergence_nsga_ii_{app}'),
+                f=hpl_iters,
+                color=color,
+                label=app,
+                title='NSGA-II convergence',
+                figsize=(5, 4),
+                xlabel='Iterations',
+                ylabel='Hypervolume'
+            )

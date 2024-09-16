@@ -4,4 +4,7 @@ venv/
 __pycache__/*
 __pycache__/
 .DS_Store
-output/
+output/*/experiments
+output/*/population
+output/*/analysis/frame
+output/*/analysis/*.mp4

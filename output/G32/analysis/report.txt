@@ -1,0 +1,2 @@
+"Energy Consumption" "Load Balance"
+417960.6 0.6420165793541915
